@@ -1,0 +1,214 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="theme-color" content="#0a0e14">
+<title>EXTREME RACING 3D</title>
+<link rel="stylesheet" href="css/style.css">
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><rect width='32' height='32' rx='6' fill='%23ff6a00'/><path d='M6 10h20v4H10v2h14v4H10v2h16v4H6z' fill='%23fff'/></svg>">
+</head>
+<body>
+<canvas id="game-canvas"></canvas>
+
+<div id="rotate-overlay"><div class="rotate-icon">📱</div><h2>Gire o dispositivo</h2><p>As corridas acontecem no modo paisagem.</p></div>
+
+<div id="screen-loading" class="screen active">
+  <div class="loading-inner">
+    <h1 class="logo">EXTREME<span>RACING</span>3D</h1>
+    <div class="loading-bar"><div id="loading-fill"></div></div>
+    <p id="loading-text">Carregando motor gráfico...</p>
+  </div>
+</div>
+
+<div id="screen-menu" class="screen">
+  <div class="menu-left">
+    <h1 class="logo big">EXTREME<span>RACING</span>3D</h1>
+    <nav class="main-nav">
+      <button class="btn btn-primary" id="btn-play">JOGAR</button>
+      <button class="btn" id="btn-garage">GARAGEM</button>
+      <button class="btn" id="btn-modes">MODOS DE JOGO</button>
+      <button class="btn" id="btn-settings">CONFIGURAÇÕES</button>
+      <button class="btn" id="btn-credits">CRÉDITOS</button>
+    </nav>
+    <div class="wallet"><span class="coin"></span><span id="menu-coins">0</span></div>
+  </div>
+</div>
+
+<div id="screen-modes" class="screen">
+  <header class="screen-header"><button class="btn btn-back" data-back>&#8592;</button><h2>MODOS DE JOGO</h2></header>
+  <div class="modes-grid">
+    <button class="mode-card" data-mode="quick"><span class="mode-icon">&#128652;</span><h3>CORRIDA RÁPIDA</h3><p>Dispute uma corrida contra adversários com IA.</p></button>
+    <button class="mode-card" data-mode="championship"><span class="mode-icon">&#127942;</span><h3>CAMPIONATO</h3><p>Sequência de 5 corridas com classificação e prêmios.</p></button>
+    <button class="mode-card" data-mode="timeattack"><span class="mode-icon">&#9201;</span><h3>CONTRARRELÓGIO</h3><p>Caçe o melhor tempo em 3 voltas cronometradas.</p></button>
+    <button class="mode-card" data-mode="free"><span class="mode-icon">&#127963;</span><h3>CORRIDA LIVRE</h3><p>Explore o cenário sem limites de tempo.</p></button>
+    <button class="mode-card" data-mode="elimination"><span class="mode-icon">&#9876;</span><h3>ELIMINAÇÃO</h3><p>O último colocado é eliminado a cada 15 segundos.</p></button>
+  </div>
+</div>
+
+<div id="screen-track" class="screen">
+  <header class="screen-header"><button class="btn btn-back" data-back>&#8592;</button><h2 id="track-title">ESCOLHA A PISTA</h2></header>
+  <div class="track-wrap">
+    <div class="track-list" id="track-list"></div>
+    <aside class="race-setup">
+      <h3 id="setup-mode">CORRIDA RÁPIDA</h3>
+      <div class="setup-row" id="setup-difficulty">
+        <label>DIFICULDADE</label>
+        <div class="seg" id="seg-difficulty">
+          <button data-diff="easy">FÁCIL</button>
+          <button data-diff="medium" class="sel">MÉDIO</button>
+          <button data-diff="hard">DIFÍCIL</button>
+        </div>
+      </div>
+      <div class="setup-row" id="setup-laps">
+        <label>VOLTAS</label>
+        <div class="seg" id="seg-laps">
+          <button data-laps="2">2</button>
+          <button data-laps="3" class="sel">3</button>
+          <button data-laps="5">5</button>
+        </div>
+      </div>
+      <div class="setup-row" id="setup-opponents">
+        <label>ADVERSÁRIOS</label>
+        <div class="seg" id="seg-opponents">
+          <button data-opp="3">3</button>
+          <button data-opp="5" class="sel">5</button>
+          <button data-opp="7">7</button>
+        </div>
+      </div>
+      <div class="record-box" id="record-box"></div>
+      <button class="btn btn-primary btn-wide" id="btn-start-race">INICIAR CORRIDA</button>
+    </aside>
+  </div>
+</div>
+
+<div id="screen-garage" class="screen">
+  <header class="screen-header">
+    <button class="btn btn-back" data-back>&#8592;</button>
+    <h2>GARAGEM</h2>
+    <div class="wallet"><span class="coin"></span><span id="garage-coins">0</span></div>
+  </header>
+  <div class="garage-left">
+    <div class="car-list" id="car-list"></div>
+  </div>
+  <div class="garage-right">
+    <div class="garage-panel" id="garage-panel">
+      <h3 id="gp-name">—</h3>
+      <p class="gp-class" id="gp-class">—</p>
+      <div class="stat-bars" id="gp-stats"></div>
+      <div class="gp-section" id="gp-buy-section">
+        <button class="btn btn-primary btn-wide" id="btn-buy-car">COMPRAR</button>
+      </div>
+      <div class="gp-section" id="gp-custom">
+        <label>PINTURA</label>
+        <div class="swatches" id="paint-swatches"></div>
+        <label>RODAS</label>
+        <div class="seg" id="wheel-seg"></div>
+        <label>MELHORIAS</label>
+        <div class="upgrades" id="upgrade-list"></div>
+      </div>
+      <button class="btn btn-primary btn-wide" id="btn-select-car">SELECIONAR</button>
+    </div>
+  </div>
+  <p class="drag-hint">Arraste para girar o carro &#128260;</p>
+</div>
+
+<div id="screen-settings" class="screen">
+  <header class="screen-header"><button class="btn btn-back" data-back>&#8592;</button><h2>CONFIGURAÇÕES</h2></header>
+  <div class="settings-body">
+    <div class="setting"><label>QUALIDADE GRÁFICA</label>
+      <div class="seg" id="seg-quality">
+        <button data-q="low">BAIXA</button><button data-q="medium">MÉDIA</button><button data-q="high">ALTA</button>
+      </div>
+    </div>
+    <div class="setting"><label>AJUSTE AUTOMÁTICO DE QUALIDADE</label><button class="toggle" id="tgl-autoquality"></button></div>
+    <div class="setting"><label>EFEITOS SONOROS</label><button class="toggle" id="tgl-sound"></button></div>
+    <div class="setting"><label>MÚSICA</label><button class="toggle" id="tgl-music"></button></div>
+    <div class="setting"><label>CONTROLES DE TOQUE</label>
+      <div class="seg" id="seg-touch"><button data-t="auto">AUTOMÁTICO</button><button data-t="on">SEMPRE</button><button data-t="off">NUNCA</button></div>
+    </div>
+    <div class="setting stats-box" id="stats-box"></div>
+    <button class="btn btn-danger" id="btn-reset-progress">APAGAR PROGRESSO</button>
+  </div>
+</div>
+
+<div id="screen-credits" class="screen">
+  <header class="screen-header"><button class="btn btn-back" data-back>&#8592;</button><h2>CRÉDITOS</h2></header>
+  <div class="credits-body">
+    <h1 class="logo">EXTREME<span>RACING</span>3D</h1>
+    <p class="credit-line">Um jogo de corrida arcade-simulador para navegador.</p>
+    <div class="credit-cols">
+      <div><h4>TECNOLOGIA</h4><p>Three.js (WebGL)</p><p>Física própria de veículos</p><p>Áudio procedural Web Audio</p><p>Veículos e pistas 100% procedurais</p></div>
+      <div><h4>RECURSOS</h4><p>12 veículos personalizáveis</p><p>5 pistas com identidade própria</p><p>5 modos de jogo</p><p>IA adversária com ultrapassagens</p></div>
+      <div><h4>CONTROLES</h4><p>W/&#8593; acelerar &nbsp; S/&#8595; frear</p><p>A/D ou &#8592;/&#8594; direção</p><p>ESPAÇO freio de mão</p><p>SHIFT nitro &nbsp; C câmera</p><p>R resetar &nbsp; ESC pausar</p></div>
+    </div>
+  </div>
+</div>
+
+<div id="hud" class="hidden">
+  <div class="hud-top-left">
+    <div class="hud-pos"><span id="hud-position">1</span><small>/ <span id="hud-total">6</span></small></div>
+    <div class="hud-lap">VOLTA <span id="hud-lap">1</span>/<span id="hud-laps">3</span></div>
+    <div class="hud-time" id="hud-time">00:00.00</div>
+    <div class="hud-laptime" id="hud-laptime"></div>
+  </div>
+  <div class="hud-top-right">
+    <button class="hud-btn" id="btn-pause">&#10074;&#10074;</button>
+  </div>
+  <canvas id="minimap" width="180" height="180"></canvas>
+  <div class="hud-bottom-right">
+    <div class="nitro-wrap"><div class="nitro-bar"><div id="nitro-fill"></div></div><span class="nitro-label">NITRO</span></div>
+    <canvas id="speedo" width="220" height="220"></canvas>
+  </div>
+  <div class="hud-message" id="hud-message"></div>
+  <div class="hud-wrongway hidden" id="hud-wrongway">CONTRAMÃO!</div>
+
+  <div id="touch-controls" class="hidden">
+    <div class="tc-left">
+      <button class="tbtn steer" id="tc-left-btn">&#9664;</button>
+      <button class="tbtn steer" id="tc-right-btn">&#9654;</button>
+    </div>
+    <div class="tc-right">
+      <button class="tbtn small" id="tc-handbrake">FREIO<br>MÃO</button>
+      <button class="tbtn small" id="tc-nitro">NITRO</button>
+      <button class="tbtn" id="tc-brake">FREIO</button>
+      <button class="tbtn big" id="tc-throttle">GÁS</button>
+    </div>
+    <div class="tc-extra">
+      <button class="tbtn tiny" id="tc-reset">RESET</button>
+      <button class="tbtn tiny" id="tc-camera">CAM</button>
+    </div>
+  </div>
+</div>
+
+<div id="screen-countdown" class="screen transparent"><div id="countdown-num"></div></div>
+
+<div id="screen-pause" class="screen transparent-dark">
+  <div class="panel">
+    <h2>PAUSADO</h2>
+    <button class="btn btn-primary btn-wide" id="btn-resume">CONTINUAR</button>
+    <button class="btn btn-wide" id="btn-restart">REINICIAR CORRIDA</button>
+    <button class="btn btn-wide" id="btn-quit">SAIR PARA O MENU</button>
+  </div>
+</div>
+
+<div id="screen-results" class="screen">
+  <div class="panel results-panel">
+    <h2 id="results-title">VITÓRIA!</h2>
+    <div id="results-rows"></div>
+    <div class="results-reward"><span class="coin"></span><span id="results-coins">+0</span></div>
+    <div class="results-btns">
+      <button class="btn btn-primary" id="btn-results-next">CONTINUAR</button>
+      <button class="btn" id="btn-results-retry">CORRER NOVAMENTE</button>
+      <button class="btn" id="btn-results-menu">MENU</button>
+    </div>
+  </div>
+</div>
+
+<div id="toast" class="hidden"></div>
+
+<script type="module" src="js/main.js"></script>
+</body>
+</html>
