@@ -135,7 +135,7 @@ button { font-family: inherit; color: inherit; background: none; border: none; c
 .hud-lap { font-size: 15px; font-weight: 800; letter-spacing: 1px; color: var(--accent2); }
 .hud-time { font-size: 20px; font-weight: 700; font-variant-numeric: tabular-nums; }
 .hud-laptime { font-size: 13px; color: #ffd75e; font-variant-numeric: tabular-nums; min-height: 16px; }
-.hud-top-right { position: absolute; top: 12px; right: 14px; pointer-events: auto; }
+.hud-top-right { position: absolute; top: 12px; right: 14px; pointer-events: auto; display: flex; gap: 8px; }
 .hud-btn { width: 46px; height: 46px; font-size: 18px; background: rgba(10,14,20,0.65); border: 1px solid rgba(255,255,255,0.25); color: #fff; border-radius: 8px; }
 #minimap { position: absolute; top: 12px; left: 50%; transform: translateX(-50%); width: 130px; height: 130px; opacity: 0.9; }
 .hud-bottom-right { position: absolute; right: 14px; bottom: 14px; display: flex; align-items: flex-end; gap: 12px; }

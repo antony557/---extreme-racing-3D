@@ -145,7 +145,7 @@ button { font-family: inherit; color: inherit; background: none; border: none; c
 .hud-lap { font-size: 15px; font-weight: 800; letter-spacing: 1px; color: var(--accent2); }
 .hud-time { font-size: 20px; font-weight: 700; font-variant-numeric: tabular-nums; }
 .hud-laptime { font-size: 13px; color: #ffd75e; font-variant-numeric: tabular-nums; min-height: 16px; }
-.hud-top-right { position: absolute; top: 12px; right: 14px; pointer-events: auto; }
+.hud-top-right { position: absolute; top: 12px; right: 14px; pointer-events: auto; display: flex; gap: 8px; }
 .hud-btn { width: 46px; height: 46px; font-size: 18px; background: rgba(10,14,20,0.65); border: 1px solid rgba(255,255,255,0.25); color: #fff; border-radius: 8px; }
 #minimap { position: absolute; top: 12px; left: 50%; transform: translateX(-50%); width: 130px; height: 130px; opacity: 0.9; }
 .hud-bottom-right { position: absolute; right: 14px; bottom: 14px; display: flex; align-items: flex-end; gap: 12px; }
@@ -237,6 +237,7 @@ button { font-family: inherit; color: inherit; background: none; border: none; c
       <button class="btn" id="btn-modes">MODOS DE JOGO</button>
       <button class="btn" id="btn-settings">CONFIGURAÇÕES</button>
       <button class="btn" id="btn-credits">CRÉDITOS</button>
+      <button class="btn" id="btn-fullscreen">TELA CHEIA</button>
     </nav>
     <div class="wallet"><span class="coin"></span><span id="menu-coins">0</span></div>
   </div>
@@ -360,6 +361,7 @@ button { font-family: inherit; color: inherit; background: none; border: none; c
     <div class="hud-laptime" id="hud-laptime"></div>
   </div>
   <div class="hud-top-right">
+    <button class="hud-btn" id="btn-fullscreen-hud" title="Tela cheia">&#x26F6;</button>
     <button class="hud-btn" id="btn-pause">&#10074;&#10074;</button>
   </div>
   <canvas id="minimap" width="180" height="180"></canvas>
@@ -3076,6 +3078,42 @@ class UI {
     this._toastTimer = setTimeout(() => t.classList.add('hidden'), ms);
   }
 
+  isFullscreen() {
+    return !!(document.fullscreenElement || document.webkitFullscreenElement);
+  }
+
+  toggleFullscreen() {
+    if (this.isFullscreen()) {
+      const exit = document.exitFullscreen || document.webkitExitFullscreen;
+      if (exit) {
+        try { const p = exit.call(document); if (p && p.catch) p.catch(() => {}); } catch (e) { /* ignore */ }
+      }
+    } else {
+      const el = document.documentElement;
+      const req = el.requestFullscreen || el.webkitRequestFullscreen;
+      if (req) {
+        try {
+          const p = req.call(el);
+          if (p && p.catch) p.catch(() => this.toast('Tela cheia bloqueada pelo navegador.', 2200));
+        } catch (e) { this.toast('Tela cheia não suportada aqui.', 2200); }
+      } else {
+        this.toast('Tela cheia não suportada neste navegador.', 2200);
+      }
+      try {
+        if (screen.orientation && screen.orientation.lock) screen.orientation.lock('landscape').catch(() => {});
+      } catch (e) { /* ignore */ }
+    }
+    setTimeout(() => this.updateFullscreenButtons(), 120);
+  }
+
+  updateFullscreenButtons() {
+    const on = this.isFullscreen();
+    const menu = this.$('btn-fullscreen');
+    if (menu) menu.textContent = on ? 'SAIR DA TELA CHEIA' : 'TELA CHEIA';
+    const hud = this.$('btn-fullscreen-hud');
+    if (hud) hud.innerHTML = on ? '&#x2715;' : '&#x26F6;';
+  }
+
   refreshCoins() {
     this.$('menu-coins').textContent = formatCoins(this.game.save.data.coins);
     this.$('garage-coins').textContent = formatCoins(this.game.save.data.coins);
@@ -3090,6 +3128,14 @@ class UI {
     click('btn-garage', () => { g.openGarage(); });
     click('btn-settings', () => { this.renderSettings(); this.show('screen-settings'); });
     click('btn-credits', () => { this.show('screen-credits'); });
+
+    const fsToggle = () => this.toggleFullscreen();
+    click('btn-fullscreen', fsToggle);
+    const fsHud = this.$('btn-fullscreen-hud');
+    if (fsHud) fsHud.addEventListener('click', fsToggle);
+    for (const ev of ['fullscreenchange', 'webkitfullscreenchange']) {
+      document.addEventListener(ev, () => this.updateFullscreenButtons());
+    }
 
     document.querySelectorAll('[data-back]').forEach((b) => {
       b.addEventListener('click', () => { g.audio.click(); this.show(this.backTarget); });

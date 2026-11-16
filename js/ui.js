@@ -31,6 +31,42 @@ export class UI {
     this._toastTimer = setTimeout(() => t.classList.add('hidden'), ms);
   }
 
+  isFullscreen() {
+    return !!(document.fullscreenElement || document.webkitFullscreenElement);
+  }
+
+  toggleFullscreen() {
+    if (this.isFullscreen()) {
+      const exit = document.exitFullscreen || document.webkitExitFullscreen;
+      if (exit) {
+        try { const p = exit.call(document); if (p && p.catch) p.catch(() => {}); } catch (e) { /* ignore */ }
+      }
+    } else {
+      const el = document.documentElement;
+      const req = el.requestFullscreen || el.webkitRequestFullscreen;
+      if (req) {
+        try {
+          const p = req.call(el);
+          if (p && p.catch) p.catch(() => this.toast('Tela cheia bloqueada pelo navegador.', 2200));
+        } catch (e) { this.toast('Tela cheia não suportada aqui.', 2200); }
+      } else {
+        this.toast('Tela cheia não suportada neste navegador.', 2200);
+      }
+      try {
+        if (screen.orientation && screen.orientation.lock) screen.orientation.lock('landscape').catch(() => {});
+      } catch (e) { /* ignore */ }
+    }
+    setTimeout(() => this.updateFullscreenButtons(), 120);
+  }
+
+  updateFullscreenButtons() {
+    const on = this.isFullscreen();
+    const menu = this.$('btn-fullscreen');
+    if (menu) menu.textContent = on ? 'SAIR DA TELA CHEIA' : 'TELA CHEIA';
+    const hud = this.$('btn-fullscreen-hud');
+    if (hud) hud.innerHTML = on ? '&#x2715;' : '&#x26F6;';
+  }
+
   refreshCoins() {
     this.$('menu-coins').textContent = formatCoins(this.game.save.data.coins);
     this.$('garage-coins').textContent = formatCoins(this.game.save.data.coins);
@@ -45,6 +81,14 @@ export class UI {
     click('btn-garage', () => { g.openGarage(); });
     click('btn-settings', () => { this.renderSettings(); this.show('screen-settings'); });
     click('btn-credits', () => { this.show('screen-credits'); });
+
+    const fsToggle = () => this.toggleFullscreen();
+    click('btn-fullscreen', fsToggle);
+    const fsHud = this.$('btn-fullscreen-hud');
+    if (fsHud) fsHud.addEventListener('click', fsToggle);
+    for (const ev of ['fullscreenchange', 'webkitfullscreenchange']) {
+      document.addEventListener(ev, () => this.updateFullscreenButtons());
+    }
 
     document.querySelectorAll('[data-back]').forEach((b) => {
       b.addEventListener('click', () => { g.audio.click(); this.show(this.backTarget); });
