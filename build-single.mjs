@@ -2,7 +2,7 @@ import { readFileSync, writeFileSync } from 'node:fs';
 
 const CDN = 'https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.min.js';
 const ORDER = [
-  'utils', 'config', 'audio', 'input', 'save', 'cars', 'tracks',
+  'utils', 'merge', 'config', 'audio', 'input', 'save', 'cars', 'tracks',
   'physics', 'ai', 'camera', 'particles', 'hud', 'ui', 'garage', 'race', 'game', 'main',
 ];
 

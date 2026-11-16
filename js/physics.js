@@ -118,9 +118,7 @@ export class CarPhysics {
 
     let slope = 0;
     if (t && info) {
-      const ahead = t.pointAtS((info.s + 4) % t.length);
-      const behind = t.pointAtS((info.s - 4 + t.length) % t.length);
-      slope = (ahead.pos.y - behind.pos.y) / 8;
+      slope = (t.heightAtS((info.s + 4) % t.length) - t.heightAtS((info.s - 4 + t.length) % t.length)) / 8;
       if (Math.abs(vF) > 0.5) accel -= PHYS.gravity * slope * Math.sign(vF);
     }
 

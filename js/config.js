@@ -1,8 +1,10 @@
 export const QUALITY = {
-  low:    { pixelRatioCap: 1.0, shadows: false, shadowSize: 512,  particles: 0.35, drawDistance: 280, antialias: false, props: 0.55, spotlights: false },
-  medium: { pixelRatioCap: 1.5, shadows: true,  shadowSize: 1024, particles: 0.8,  drawDistance: 460, antialias: true,  props: 1.0,  spotlights: true },
-  high:   { pixelRatioCap: 2.0, shadows: true,  shadowSize: 2048, particles: 1.3,  drawDistance: 700, antialias: true,  props: 1.4,  spotlights: true },
+  low:    { pixelRatioCap: 1.0, shadows: false, shadowSize: 512,  particles: 0.3,  drawDistance: 280, antialias: false, props: 0.5,  spotlights: false, far: 2200, shadowDist: 45 },
+  medium: { pixelRatioCap: 1.5, shadows: true,  shadowSize: 1024, particles: 0.7,  drawDistance: 460, antialias: true,  props: 0.9,  spotlights: true,  far: 2400, shadowDist: 65 },
+  ultra:  { pixelRatioCap: 2.0, shadows: true,  shadowSize: 2048, particles: 1.2,  drawDistance: 700, antialias: true,  props: 1.3,  spotlights: true,  far: 2600, shadowDist: 85 },
 };
+QUALITY.high = QUALITY.ultra;
+export const QUALITY_LABELS = { low: 'baixa', medium: 'média', ultra: 'ultra', high: 'ultra' };
 
 export const DIFFICULTY = {
   easy:   { label: 'Fácil',   speed: 0.80, grip: 0.85, reward: 0.8 },

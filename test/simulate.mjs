@@ -1,7 +1,7 @@
 import { Track, TRACKS } from '../js/tracks.js';
 import { CarPhysics } from '../js/physics.js';
 import { AIController } from '../js/ai.js';
-import { CAR_SPECS, buildCarMesh } from '../js/cars.js';
+import { CAR_SPECS, buildCarMesh, setBrakeLights } from '../js/cars.js';
 import { clamp } from '../js/utils.js';
 
 function ctxStub() {
@@ -145,7 +145,54 @@ console.log('== Mesh do carro ==');
   check('carro tem 4 rodas', wheels.length === 4);
   check('2 rodas dianteiras', wheels.filter((w) => w.front).length === 2);
   check('paint material presente', !!mesh.userData.paint);
-  check('lanternas de freio presentes', mesh.userData.brakeMats.length === 2);
+  check('lanternas de freio presentes', mesh.userData.brakeMats.length >= 1);
+  const before = mesh.userData.brakeMats[0].emissiveIntensity;
+  setBrakeLights(mesh, true);
+  const on = mesh.userData.brakeMats[0].emissiveIntensity;
+  setBrakeLights(mesh, false);
+  const off = mesh.userData.brakeMats[0].emissiveIntensity;
+  check('luz de freio acende/apaga', on > before && off < on, `(on=${on.toFixed(1)}, off=${off.toFixed(1)})`);
+
+  let meshes = 0, tris = 0;
+  mesh.traverse((o) => {
+    if (o.isMesh) {
+      meshes++;
+      const g = o.geometry;
+      tris += (g.index ? g.index.count : g.attributes.position.count) / 3;
+    }
+  });
+  check('carro compacto (<= 20 malhas)', meshes <= 20, `(malhas=${meshes})`);
+  check('carroceria com curvatura (muitos v\u00e9rtices)', tris > 3000, `(tris=${Math.round(tris)})`);
+
+  const specs = new Set();
+  for (const spec of CAR_SPECS) {
+    const m = buildCarMesh(spec, { color: '#00ff00', wheel: 0 });
+    const pts = [];
+    m.traverse((o) => { if (o.isMesh && o.geometry.attributes.position) pts.push(o.geometry.attributes.position.count); });
+    specs.add(spec.id + ':' + pts.join(','));
+  }
+  check('12 carros com silhuetas distintas', specs.size === CAR_SPECS.length, `(unicos=${specs.size}/${CAR_SPECS.length})`);
+}
+
+console.log('== Partículas instanciadas ==');
+{
+  const { ParticleSystem } = await import('../js/particles.js');
+  const added = [];
+  const fakeScene = { add: (o) => added.push(o), remove: (o) => { const i = added.indexOf(o); if (i >= 0) added.splice(i, 1); } };
+  const ps = new ParticleSystem(fakeScene, { particles: 1 });
+  check('partículas: 1 malha de billboards + 1 de skids', added.length === 2, `(objetos=${added.length})`);
+  for (let i = 0; i < 500; i++) ps.smoke(i * 0.1, 0.3, i * 0.2);
+  for (let i = 0; i < 60; i++) ps.update(1 / 60);
+  check('pool de partículas limitado', ps.count <= ps.max, `(count=${ps.count}, max=${ps.max})`);
+  check('instanceCount acompanha pool', ps.billGeo.instanceCount === ps.count);
+  for (let i = 0; i < 500; i++) ps.skidMark(i * 0.3, 0, 0, 0.5);
+  check('skids: ring buffer limitado', ps.skidMesh.count <= ps.skidMax, `(count=${ps.skidMesh.count}, max=${ps.skidMax})`);
+  ps.sparks(0, 0, 0, 12);
+  ps.nitro(0, 0, 0);
+  ps.dust(0, 0, 0);
+  ps.update(1 / 60);
+  ps.dispose();
+  check('dispose sem erro e remove da cena', added.length === 0);
 }
 
 console.log(failures === 0 ? '\nTODOS OS TESTES PASSARAM' : `\n${failures} TESTES FALHARAM`);

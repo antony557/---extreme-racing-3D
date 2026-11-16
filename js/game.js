@@ -7,7 +7,7 @@ import { UI } from './ui.js';
 import { Garage } from './garage.js';
 import { Race } from './race.js';
 import { buildCarMesh, getSpec } from './cars.js';
-import { QUALITY, PAINTS } from './config.js';
+import { QUALITY, QUALITY_LABELS, PAINTS } from './config.js';
 import { CAMERA_MODES } from './camera.js';
 import { isTouchDevice } from './utils.js';
 
@@ -16,7 +16,7 @@ export class Game {
     this.canvas = document.getElementById('game-canvas');
     const settings = this.loadSettings();
     this.quality = QUALITY[settings.quality] || QUALITY.medium;
-    this.qualityKey = settings.quality || 'medium';
+    this.qualityKey = settings.quality === 'high' ? 'ultra' : (settings.quality || 'medium');
 
     this.renderer = new THREE.WebGLRenderer({ canvas: this.canvas, antialias: this.quality.antialias, powerPreference: 'high-performance' });
     this.renderer.outputColorSpace = THREE.SRGBColorSpace;
@@ -93,7 +93,11 @@ export class Game {
   loadSettings() {
     try {
       const raw = localStorage.getItem('extremeRacing3D.save.v1');
-      if (raw) return JSON.parse(raw).settings || {};
+      if (raw) {
+        const settings = JSON.parse(raw).settings || {};
+        if (settings.quality === 'high') settings.quality = 'ultra';
+        return settings;
+      }
     } catch (e) { /* ignore */ }
     return {};
   }
@@ -170,7 +174,7 @@ export class Game {
     this.quality = QUALITY[key];
     this.renderer.shadowMap.enabled = this.quality.shadows;
     this.applyPixelRatio();
-    this.ui.toast(`Qualidade ${key === 'low' ? 'baixa' : key === 'medium' ? 'média' : 'alta'} aplicada.`, 2000);
+    this.ui.toast(`Qualidade ${QUALITY_LABELS[key] || key} aplicada.`, 2000);
   }
 
   openGarage() {
@@ -259,7 +263,7 @@ export class Game {
         if (this.fps < 28) {
           this.lowFpsTime += 1;
           if (this.lowFpsTime >= 4 && this.qualityKey !== 'low') {
-            const next = this.qualityKey === 'high' ? 'medium' : 'low';
+            const next = this.qualityKey === 'ultra' || this.qualityKey === 'high' ? 'medium' : 'low';
             this.setQuality(next);
             this.lowFpsTime = 0;
             this.ui.toast('Qualidade ajustada automaticamente para manter o desempenho.', 3000);

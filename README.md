@@ -28,7 +28,7 @@ Abra `http://localhost:8080` (ou a porta indicada) no navegador.
   - Teclado: `W/↑` acelerar, `S/↓` frear (e ré), `A/D` ou `←/→` direção, `Espaço` freio de mão, `Shift` nitro, `C` câmera, `R` reposicionar, `Esc` pausar.
   - Toque: botões grandes de gás, freio, freio de mão, nitro, esquerda/direita, reset e câmera — com multi-toque (acelerar e virar ao mesmo tempo). Orientação paisagem durante as corridas.
 - **Progressão**: moedas, recompensas por posição, desbloqueio de veículos, melhorias, recordes e estatísticas — salvamento automático no `localStorage`.
-- **Otimização**: 3 níveis de qualidade (baixa/média/alta), ajuste automático por FPS, sombras apenas quando suportadas, instancing de vegetação/props, névoa de distância, partículas em pool e limpeza de memória entre corridas.
+- **Otimização**: 3 níveis de qualidade (BAIXA/MÉDIA/ULTRA) com ajuste automático por FPS, carros com carroceria lofted mesclada (~16 malhas por carro), partículas 100% instanciadas (1 draw call de billboards + 1 de marcas de derrapagem), prédios/postes/placas/arquibancadas mesclados ou instanciados, sombras apenas quando suportadas, névoa de distância, reuso de geometrias/materiais em cache (rodas, vidros, cromo) e limpeza de memória entre corridas.
 
 ## Estrutura
 

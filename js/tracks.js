@@ -1,5 +1,6 @@
 import * as THREE from './vendor/three.module.min.js';
 import { mulberry32, clamp } from './utils.js';
+import { mergeGeoms, boxGeo, cylGeo } from './merge.js';
 
 export const TRACKS = [
   {
@@ -263,7 +264,7 @@ export class Track {
     const cloudTex = makeCloudTexture();
     const cloudMat = new THREE.SpriteMaterial({ map: cloudTex, transparent: true, opacity: 0.8, depthWrite: false, fog: false });
     for (let i = 0; i < 14; i++) {
-      const sp = new THREE.Sprite(cloudMat.clone());
+      const sp = new THREE.Sprite(cloudMat);
       const ang = this.rng() * Math.PI * 2;
       const dist = 200 + this.rng() * 700;
       sp.position.set(Math.cos(ang) * dist, 130 + this.rng() * 160, Math.sin(ang) * dist);
@@ -416,6 +417,7 @@ export class Track {
         new THREE.MeshStandardMaterial({ map: winTex, emissiveMap: winTex, emissive: 0xffffff, emissiveIntensity: 0.55, roughness: 0.8 }),
         new THREE.MeshStandardMaterial({ map: winTex2, emissiveMap: winTex2, emissive: 0xffffff, emissiveIntensity: 0.5, roughness: 0.8, color: 0x8a93a8 }),
       ];
+      const buckets = [[], []];
       for (let i = 0; i < s.length; i += step) {
         for (const side of [1, -1]) {
           if (rng() > 0.75 * density) continue;
@@ -423,28 +425,34 @@ export class Track {
           const off = this.halfWidth + Math.max(w, d) / 2 + 3 + rng() * 20;
           const nx = -s[i].tan.z * side, nz = s[i].tan.x * side;
           const x = s[i].pos.x + nx * off, z = s[i].pos.z + nz * off;
-          const b = new THREE.Mesh(new THREE.BoxGeometry(w, h, d), mats[Math.floor(rng() * mats.length)]);
-          b.position.set(x, h / 2 - 0.5, z);
-          b.rotation.y = rng() * Math.PI;
-          b.castShadow = false;
-          this.group.add(b);
+          const g = new THREE.BoxGeometry(w, h, d);
+          const uv = g.attributes.uv;
+          for (let vi = 0; vi < uv.count; vi++) uv.setXY(vi, uv.getX(vi) * (w / 6), uv.getY(vi) * (h / 6));
+          const m4 = new THREE.Matrix4().makeRotationY(rng() * Math.PI);
+          m4.setPosition(x, h / 2 - 0.5, z);
+          const mi = Math.floor(rng() * mats.length);
+          buckets[mi].push({ geo: g, matrix: m4 });
           this.addCollider(x, z, Math.hypot(w, d) / 2 * 0.8);
         }
       }
+      for (let k = 0; k < 2; k++) {
+        if (buckets[k].length) this.group.add(new THREE.Mesh(mergeGeoms(buckets[k]), mats[k]));
+      }
       const poleMat = new THREE.MeshStandardMaterial({ color: 0x3a4048, metalness: 0.7, roughness: 0.4 });
       const lampMat = new THREE.MeshStandardMaterial({ color: 0xfff2c0, emissive: 0xffe9a8, emissiveIntensity: 2.2 });
+      const poleItems = [], lampItems = [];
       for (let i = 0; i < s.length; i += step * 3) {
         const side = (i / (step * 3)) % 2 < 1 ? 1 : -1;
         const nx = -s[i].tan.z * side, nz = s[i].tan.x * side;
         const poleDist = this.halfWidth + this.shoulder + 0.8;
         const x = s[i].pos.x + nx * poleDist, z = s[i].pos.z + nz * poleDist;
-        const pole = new THREE.Mesh(new THREE.CylinderGeometry(0.12, 0.16, 7, 6), poleMat);
-        pole.position.set(x, s[i].pos.y + 3.5, z);
-        this.group.add(pole);
-        const lamp = new THREE.Mesh(new THREE.BoxGeometry(0.9, 0.2, 0.4), lampMat);
-        lamp.position.set(x - nx * 1.2, s[i].pos.y + 6.9, z - nz * 1.2);
-        this.group.add(lamp);
+        poleItems.push({ geo: cylGeo(0.12, 0.16, 7, 6, x, s[i].pos.y + 3.5, z) });
+        lampItems.push({ geo: boxGeo(0.9, 0.2, 0.4, x - nx * 1.2, s[i].pos.y + 6.9, z - nz * 1.2) });
         this.addCollider(x, z, 0.4);
+      }
+      if (poleItems.length) {
+        this.group.add(new THREE.Mesh(mergeGeoms(poleItems), poleMat));
+        this.group.add(new THREE.Mesh(mergeGeoms(lampItems), lampMat));
       }
     }
 
@@ -504,24 +512,27 @@ export class Track {
       }
       this.group.add(posts);
       const signMat = new THREE.MeshStandardMaterial({ color: 0x1a6a3a, roughness: 0.6 });
+      const postMat2 = new THREE.MeshStandardMaterial({ color: 0x8a8f96, metalness: 0.6, roughness: 0.5 });
+      const postItems = [], boardItems = [];
       for (let i = 0; i < s.length; i += step * 7) {
         const side = rng() < 0.5 ? 1 : -1;
         const nx = -s[i].tan.z * side, nz = s[i].tan.x * side;
         const x = s[i].pos.x + nx * (this.halfWidth + this.shoulder + 1.2), z = s[i].pos.z + nz * (this.halfWidth + this.shoulder + 1.2);
-        const post = new THREE.Mesh(new THREE.CylinderGeometry(0.1, 0.1, 3.4, 6), new THREE.MeshStandardMaterial({ color: 0x8a8f96, metalness: 0.6 }));
-        post.position.set(x, s[i].pos.y + 1.7, z);
-        this.group.add(post);
-        const board = new THREE.Mesh(new THREE.BoxGeometry(2.6, 1.3, 0.1), signMat);
-        board.position.set(x, s[i].pos.y + 3.6, z);
-        board.rotation.y = Math.atan2(s[i].tan.x, s[i].tan.z);
-        this.group.add(board);
+        postItems.push({ geo: cylGeo(0.1, 0.1, 3.4, 6, x, s[i].pos.y + 1.7, z) });
+        boardItems.push({ geo: boxGeo(2.6, 1.3, 0.1, x, s[i].pos.y + 3.6, z, Math.atan2(s[i].tan.x, s[i].tan.z)) });
         this.addCollider(x, z, 0.4);
+      }
+      if (postItems.length) {
+        this.group.add(new THREE.Mesh(mergeGeoms(postItems), postMat2));
+        this.group.add(new THREE.Mesh(mergeGeoms(boardItems), signMat));
       }
     }
 
     if (theme === 'circuit') {
-      const standMat = new THREE.MeshStandardMaterial({ color: 0xc8ccd4, roughness: 0.7 });
+      const standItems = [];
       const seatColors = [0xcc3344, 0x3366cc, 0xffcc33, 0x33aa66];
+      const seatRGB = seatColors.map((c) => { const col = new THREE.Color(c); return [col.r, col.g, col.b]; });
+      const backRGB = [0.78, 0.8, 0.83];
       for (let i = 0; i < s.length; i += step * 5) {
         if (rng() > 0.65 * density) continue;
         const side = rng() < 0.5 ? 1 : -1;
@@ -529,19 +540,16 @@ export class Track {
         const off = this.halfWidth + 11 + rng() * 4;
         const x = s[i].pos.x + nx * off, z = s[i].pos.z + nz * off;
         const rot = Math.atan2(s[i].tan.x, s[i].tan.z) + (side > 0 ? 0 : Math.PI);
-        const g = new THREE.Group();
+        const m4 = new THREE.Matrix4().makeRotationY(rot);
+        m4.setPosition(x, s[i].pos.y, z);
         for (let r = 0; r < 4; r++) {
-          const row = new THREE.Mesh(new THREE.BoxGeometry(24, 1.2, 2.4), new THREE.MeshStandardMaterial({ color: seatColors[Math.floor(rng() * 4)], roughness: 0.8 }));
-          row.position.set(0, 0.6 + r * 1.1, -r * 2.2);
-          g.add(row);
+          standItems.push({ geo: boxGeo(24, 1.2, 2.4, 0, 0.6 + r * 1.1, -r * 2.2), matrix: m4, color: seatRGB[Math.floor(rng() * 4)] });
         }
-        const back = new THREE.Mesh(new THREE.BoxGeometry(24, 6, 0.6), standMat);
-        back.position.set(0, 3, -8.6);
-        g.add(back);
-        g.position.set(x, s[i].pos.y, z);
-        g.rotation.y = rot;
-        this.group.add(g);
+        standItems.push({ geo: boxGeo(24, 6, 0.6, 0, 3, -8.6), matrix: m4, color: backRGB });
         this.addCollider(x, z, 9);
+      }
+      if (standItems.length) {
+        this.group.add(new THREE.Mesh(mergeGeoms(standItems), new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.8 })));
       }
       const tireMat = new THREE.MeshStandardMaterial({ color: 0x14161a, roughness: 0.95 });
       const tireGeo = new THREE.TorusGeometry(0.55, 0.24, 8, 14);
@@ -715,6 +723,16 @@ export class Track {
       pos: new THREE.Vector3().lerpVectors(a.pos, b.pos, t),
       tan: a.tan,
     };
+  }
+
+  heightAtS(s) {
+    const N = this.sampleCount;
+    const f = ((s / this.length) % 1 + 1) % 1;
+    const fi = f * N;
+    const i0 = Math.floor(fi) % N;
+    const i1 = (i0 + 1) % N;
+    const t = fi - Math.floor(fi);
+    return this.samples[i0].pos.y + (this.samples[i1].pos.y - this.samples[i0].pos.y) * t;
   }
 
   sampleAhead(s, d) {

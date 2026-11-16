@@ -244,10 +244,14 @@ export class Garage {
     if (this.carMesh) {
       this.scene.remove(this.carMesh);
       this.carMesh.traverse((o) => {
-        if (o.geometry) o.geometry.dispose();
+        if (o.geometry && !(o.geometry.userData && o.geometry.userData.cached)) o.geometry.dispose();
         if (o.material) {
           const mats = Array.isArray(o.material) ? o.material : [o.material];
-          for (const m of mats) m.dispose();
+          for (const m of mats) {
+            if (m.userData && m.userData.cached) continue;
+            if (m.map && !(m.map.userData && m.map.userData.cached)) m.map.dispose();
+            m.dispose();
+          }
         }
       });
     }

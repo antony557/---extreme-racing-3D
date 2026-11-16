@@ -9,6 +9,8 @@ import { ELIMINATION_INTERVAL, DIFFICULTY, CHAMPIONSHIP_POINTS, PAINTS } from '.
 import { clamp, mulberry32, formatTime } from './utils.js';
 
 const REWARDS = [500, 350, 250, 200, 160, 130, 110, 100];
+const NEUTRAL = { throttle: 0, brake: 0, steer: 0, handbrake: false, nitro: false };
+const BRAKE = { throttle: 0, brake: 1, steer: 0, handbrake: false, nitro: false };
 
 export class Race {
   constructor(game, config) {
@@ -35,7 +37,7 @@ export class Race {
     this.scene.fog = new THREE.FogExp2(th.fog, th.fogDensity);
     if (this.track.envMap) this.scene.environment = this.track.envMap;
 
-    this.camera = new THREE.PerspectiveCamera(62, game.aspect, 0.3, 2200);
+    this.camera = new THREE.PerspectiveCamera(62, game.aspect, 0.3, quality.far || 2200);
     this.rig = new CameraRig(this.camera);
     this.rig.mode = game.save.data.settings.camera || 0;
 
@@ -129,6 +131,7 @@ export class Race {
 
     if (this.state === 'racing' || this.state === 'ending') {
       this.elapsed += dt;
+      this.frameCtl = this.state === 'racing' ? this.game.input.sample() : NEUTRAL;
       const substeps = dt > 0.025 ? 2 : 1;
       const sdt = dt / substeps;
       for (let s = 0; s < substeps; s++) this.step(sdt);
@@ -152,16 +155,16 @@ export class Race {
 
   step(dt) {
     const racing = this.state === 'racing';
-    const playerCtl = racing ? this.game.input.sample() : { throttle: 0, brake: 0, steer: 0, handbrake: false, nitro: false };
+    const playerCtl = this.frameCtl || NEUTRAL;
     const cars = this.cars;
 
     for (const car of cars) {
-      if (car.eliminated) { car.physics.update(dt, { throttle: 0, brake: 1, steer: 0, handbrake: false, nitro: false }); continue; }
+      if (car.eliminated) { car.physics.update(dt, BRAKE); continue; }
       let ctl;
       if (car.isPlayer) ctl = playerCtl;
       else if (car.ai) ctl = car.ai.update(dt, cars);
-      else ctl = { throttle: 0, brake: 1, steer: 0, handbrake: false, nitro: false };
-      if (!racing) ctl = { throttle: 0, brake: 1, steer: 0, handbrake: false, nitro: false };
+      else ctl = BRAKE;
+      if (!racing) ctl = BRAKE;
       car.physics.update(dt, ctl);
     }
 
@@ -264,7 +267,7 @@ export class Race {
   }
 
   onCollision(impact, x, z, a, b) {
-    this.particles.sparks(new THREE.Vector3(x, 0.4, z), Math.min(10, Math.floor(impact)));
+    this.particles.sparks(x, 0.4, z, Math.min(10, Math.floor(impact)));
     if (a.isPlayer || b.isPlayer) {
       this.game.audio.thump(impact);
       this.rig.addShake(impact * 0.05);
@@ -272,7 +275,7 @@ export class Race {
   }
 
   updateVisuals(dt) {
-    const playerCtl = this.game.input.sample();
+    const playerCtl = this.frameCtl || NEUTRAL;
     for (const car of this.cars) {
       const ph = car.physics;
       car.mesh.position.set(ph.pos.x, ph.pos.y, ph.pos.z);
@@ -292,20 +295,20 @@ export class Race {
       const speed = Math.abs(ph.forwardSpeed);
       if (ph.drifting && Math.random() < ph.skidLevel * 0.9) {
         const bx = ph.pos.x - Math.sin(ph.heading) * 1.4, bz = ph.pos.z - Math.cos(ph.heading) * 1.4;
-        if (ph.onGrass) this.particles.dust(new THREE.Vector3(bx, 0.2, bz));
-        else this.particles.smoke(new THREE.Vector3(bx, 0.25, bz));
+        if (ph.onGrass) this.particles.dust(bx, 0.2, bz);
+        else this.particles.smoke(bx, 0.25, bz);
         this.particles.skidMark(bx, ph.pos.y, bz, -ph.heading);
       } else if (ph.onGrass && speed > 10 && Math.random() < 0.5) {
-        this.particles.dust(new THREE.Vector3(ph.pos.x - Math.sin(ph.heading) * 1.4, 0.2, ph.pos.z - Math.cos(ph.heading) * 1.4));
+        this.particles.dust(ph.pos.x - Math.sin(ph.heading) * 1.4, 0.2, ph.pos.z - Math.cos(ph.heading) * 1.4);
       }
       if (ph.nitroActive && Math.random() < 0.85) {
         const bx = ph.pos.x - Math.sin(ph.heading) * (car.spec.body.len / 2 + 0.2);
         const bz = ph.pos.z - Math.cos(ph.heading) * (car.spec.body.len / 2 + 0.2);
-        this.particles.nitro(new THREE.Vector3(bx, 0.35, bz));
+        this.particles.nitro(bx, 0.35, bz);
       }
       for (const ev of ph.consumeEvents()) {
         if (ev.type === 'collision') {
-          this.particles.sparks(new THREE.Vector3(ev.x, 0.4, ev.z), Math.min(8, Math.floor(ev.impact)));
+          this.particles.sparks(ev.x, 0.4, ev.z, Math.min(8, Math.floor(ev.impact)));
           if (car.isPlayer) { this.game.audio.thump(ev.impact); this.rig.addShake(ev.impact * 0.06); }
         }
       }
@@ -418,10 +421,14 @@ export class Race {
     this.track.dispose();
     this.particles.dispose();
     this.scene.traverse((o) => {
-      if (o.geometry) o.geometry.dispose();
+      if (o.geometry && !(o.geometry.userData && o.geometry.userData.cached)) o.geometry.dispose();
       if (o.material) {
         const mats = Array.isArray(o.material) ? o.material : [o.material];
-        for (const m of mats) { if (m.map) m.map.dispose(); m.dispose(); }
+        for (const m of mats) {
+          if (m.userData && m.userData.cached) continue;
+          if (m.map && !(m.map.userData && m.map.userData.cached)) m.map.dispose();
+          m.dispose();
+        }
       }
     });
   }
