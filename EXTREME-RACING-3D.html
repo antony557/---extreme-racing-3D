@@ -4300,6 +4300,7 @@ class Game {
     window.addEventListener('keydown', unlock);
 
     this.checkOrientation();
+    this.installErrorReporter();
     this.renderer.setAnimationLoop(() => this.loop());
   }
 
@@ -4489,12 +4490,22 @@ class Game {
     }
   }
 
+  installErrorReporter() {
+    window.addEventListener('error', (e) => {
+      this._showRuntimeError(e.error || e.message || 'Erro desconhecido');
+    });
+    window.addEventListener('unhandledrejection', (e) => {
+      const r = e.reason;
+      this._showRuntimeError(r && r.stack ? r : (r && r.message ? r : new Error(String(r))));
+    });
+  }
+
   loop() {
     try {
       this.tick();
       if (this._errStreak > 0) {
         this._errStreak = 0;
-        this._hideRuntimeError();
+        if (performance.now() - (this._lastErrAt || 0) > 8000) this._hideRuntimeError();
       }
     } catch (err) {
       console.error('ERRO no loop do jogo:', err);
@@ -4507,16 +4518,18 @@ class Game {
   }
 
   _showRuntimeError(err) {
+    this._lastErrAt = performance.now();
     let el = document.getElementById('err-overlay');
     if (!el) {
       el = document.createElement('div');
       el.id = 'err-overlay';
-      el.style.cssText = 'position:fixed;left:8px;top:8px;z-index:99999;max-width:78%;padding:8px 10px;background:rgba(130,0,0,.94);color:#fff;font:11px/1.45 monospace;border:1px solid rgba(255,255,255,.35);border-radius:6px;white-space:pre-wrap;pointer-events:none;';
+      el.style.cssText = 'position:fixed;left:8px;top:8px;z-index:99999;max-width:82%;max-height:60%;overflow:hidden;padding:10px 12px;background:rgba(130,0,0,.94);color:#fff;font:11px/1.5 monospace;border:1px solid rgba(255,255,255,.35);border-radius:6px;white-space:pre-wrap;pointer-events:none;';
       document.body.appendChild(el);
     }
     const msg = err && err.message ? err.message : String(err);
-    const stack = err && err.stack ? (err.stack.split('\n')[1] || '') : '';
-    el.textContent = 'ERRO x' + this._errStreak + ': ' + msg + (stack ? '\n' + stack.trim().slice(0, 160) : '');
+    const stack = err && err.stack ? err.stack.split('\n').slice(1, 4).join('\n') : '';
+    this._errCount = (this._errCount || 0) + 1;
+    el.textContent = 'ERRO #' + this._errCount + ': ' + msg + (stack ? '\n' + stack.trim() : '');
   }
 
   _hideRuntimeError() {
