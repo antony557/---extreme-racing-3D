@@ -1,0 +1,13 @@
+{
+  "name": "elite-sniper-open-world",
+  "version": "1.0.0",
+  "type": "module",
+  "description": "FPS de sniper em mundo aberto para navegador, PC e Android",
+  "scripts": {
+    "test": "node tests/smoke.mjs",
+    "start": "npx serve ."
+  },
+  "dependencies": {
+    "three": "0.160.0"
+  }
+}
