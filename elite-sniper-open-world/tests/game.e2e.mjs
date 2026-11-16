@@ -43,6 +43,7 @@ globalThis.localStorage = {
 globalThis.window = {
   innerWidth: 1280, innerHeight: 720, devicePixelRatio: 1,
   addEventListener() {}, AudioContext: undefined,
+  PointerEvent: function PointerEvent() {},
 };
 const consoleErrors = [];
 const origConsoleError = console.error;
@@ -161,57 +162,89 @@ for (let i = 0; i < 120; i++) game._loop();
 // Autosave gravou algo
 assert(store.has('elite-sniper-save-v1'), 'autosave persistiu dados');
 
-// ---- Câmera mobile por toque (dedo direito) ----
+// ---- Câmera mobile por toque (Pointer Events — caminho real do Android) ----
 const canvas = game.canvas;
-const touch = (phase, id, x, y) =>
-  canvas.dispatch('touch' + phase, { changedTouches: [{ identifier: id, clientX: x, clientY: y }] });
+const ptr = (type, id, x, y, ptype) => canvas.dispatch('pointer' + type, {
+  pointerId: id, pointerType: ptype || 'touch', clientX: x, clientY: y, button: 0,
+});
 
 const yawBefore = game.player.yaw;
-touch('start', 7, 900, 400);
-touch('move', 7, 820, 340);
-touch('end', 7, 820, 340);
+ptr('down', 7, 900, 400);
+ptr('move', 7, 820, 340);
+ptr('up', 7, 820, 340);
 game._loop();
 assert(Math.abs(game.player.yaw - yawBefore) > 0.05, 'toque no lado direito gira a câmera (yaw)');
 
 const pitchBefore = game.cameraCtl.pitch;
-touch('start', 8, 900, 300);
-touch('move', 8, 900, 220);
-touch('end', 8, 900, 220);
+ptr('down', 8, 900, 300);
+ptr('move', 8, 900, 220);
+ptr('up', 8, 900, 220);
 game._loop();
 assert(Math.abs(game.cameraCtl.pitch - pitchBefore) > 0.05, 'arrastar para cima olha para cima (pitch)');
 
 // ---- Analógico esquerdo (canto inferior esquerdo) ----
-touch('start', 9, 90, 640);
-touch('move', 9, 150, 640);
+ptr('down', 9, 90, 640);
+ptr('move', 9, 150, 640);
 assert(game.input.move.x > 0.3, 'analógico esquerdo move o personagem para a direita');
-touch('end', 9, 150, 640);
+ptr('up', 9, 150, 640);
 assert(game.input.move.x === 0 && game.input.move.y === 0, 'soltar o analógico zera o movimento');
 
 // Toque no lado esquerdo ACIMA da zona do analógico deve girar a câmera
-touch('start', 10, 100, 150);
-touch('move', 10, 60, 150);
-touch('end', 10, 60, 150);
+ptr('down', 10, 100, 150);
+ptr('move', 10, 60, 150);
+ptr('up', 10, 60, 150);
+game._loop();
 assert(true, 'toque superior esquerdo não vira movimento');
 
 // ---- REGRESSÃO: câmera não trava mais após abrir menu com o dedo na tela ----
-touch('start', 11, 900, 400);
+ptr('down', 11, 900, 400);
 game.pause();
-touch('end', 11, 900, 400);
+ptr('up', 11, 900, 400);
 assert(game.state === 'paused', 'pausa com o dedo na tela');
 game.resume();
 const yawBefore2 = game.player.yaw;
-touch('start', 12, 900, 400);
-touch('move', 12, 840, 400);
-touch('end', 12, 840, 400);
+ptr('down', 12, 900, 400);
+ptr('move', 12, 840, 400);
+ptr('up', 12, 840, 400);
 game._loop();
 assert(Math.abs(game.player.yaw - yawBefore2) > 0.05, 'câmera continua respondendo após pausar/continuar (bug do toque preso)');
 
 // Mesma regressão com o analógico preso
-touch('start', 13, 90, 640);
+ptr('down', 13, 90, 640);
 game.pause();
-touch('end', 13, 90, 640);
+ptr('up', 13, 90, 640);
 game.resume();
 assert(game.input.move.x === 0 && game.input.move.y === 0, 'analógico não fica preso após pausa');
+
+// ---- Gesto longo passando por cima de botões (captura de ponteiro) ----
+const yawP = game.player.yaw;
+ptr('down', 21, 900, 400);
+ptr('move', 21, 820, 340);
+ptr('up', 21, 820, 340);
+game._loop();
+assert(Math.abs(game.player.yaw - yawP) > 0.05, 'POINTER EVENT: dedo direito gira a câmera');
+
+// Dedo passa por cima de um botão no meio do gesto — com captura, continua girando
+const yawQ = game.player.yaw;
+ptr('down', 22, 900, 400);
+ptr('move', 22, 700, 380);
+ptr('move', 22, 560, 360);
+ptr('up', 22, 560, 360);
+game._loop();
+assert(Math.abs(game.player.yaw - yawQ) > 0.1, 'POINTER EVENT: gesto longo (sobre botões) continua girando');
+
+// Analógico via Pointer Events
+ptr('down', 23, 90, 640);
+ptr('move', 23, 150, 640);
+assert(game.input.move.x > 0.3, 'POINTER EVENT: analógico esquerdo move');
+ptr('up', 23, 150, 640);
+assert(game.input.move.x === 0, 'POINTER EVENT: soltar analógico zera');
+
+// Mouse na tela (PC sem lock) NÃO deve conflitar com toque
+ptr('down', 24, 400, 300, 'mouse');
+ptr('move', 24, 500, 300, 'mouse');
+ptr('up', 24, 500, 300, 'mouse');
+assert(game.input.move.x === 0 && game.input.move.y === 0, 'mouse sem lock não interfere no toque');
 
 // ---- Botões mobile disparam ações (pointerdown) ----
 const fireBtn = elements.get('btn-fire');

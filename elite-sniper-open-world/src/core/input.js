@@ -51,20 +51,41 @@ export class Input {
     });
     document.addEventListener('keyup', (e) => this._keys.delete(e.code));
 
-    c.addEventListener('mousedown', (e) => {
-      if (this._pointerLocked) {
-        if (e.button === 0) { this._fireHeld = true; this.firePressed = true; }
-        if (e.button === 2) this.aim = true;
-      }
-    });
-    document.addEventListener('mouseup', (e) => {
-      if (e.button === 0) this._fireHeld = false;
-      if (e.button === 2) this.aim = false;
-    });
     c.addEventListener('contextmenu', (e) => e.preventDefault());
     document.addEventListener('pointerlockchange', () => {
       this._pointerLocked = document.pointerLockElement === c;
     });
+
+    if (typeof window !== 'undefined' && window.PointerEvent) {
+      // Pointer Events unificados (Android/PC). setPointerCapture garante que o
+      // dedo continue girando a câmera MESMO passando por cima dos botões.
+      c.addEventListener('pointerdown', (e) => this._pointerDown(e));
+      c.addEventListener('pointermove', (e) => this._pointerMove(e));
+      c.addEventListener('pointerup', (e) => this._pointerUp(e));
+      c.addEventListener('pointercancel', (e) => this._pointerUp(e));
+    } else {
+      // Fallback antigo (touch events) — navegadores sem PointerEvent
+      c.addEventListener('mousedown', (e) => {
+        if (this._pointerLocked) {
+          if (e.button === 0) { this._fireHeld = true; this.firePressed = true; }
+          if (e.button === 2) this.aim = true;
+        }
+      });
+      document.addEventListener('mouseup', (e) => {
+        if (e.button === 0) this._fireHeld = false;
+        if (e.button === 2) this.aim = false;
+      });
+      c.addEventListener('touchstart', (e) => this._touch(e, 'start'), { passive: false });
+      c.addEventListener('touchmove', (e) => this._touch(e, 'move'), { passive: false });
+      c.addEventListener('touchend', (e) => this._touch(e, 'end'), { passive: false });
+      c.addEventListener('touchcancel', (e) => this._touch(e, 'end'), { passive: false });
+    }
+
+    // PC: clique recaptura o mouse se o pointer lock caiu (pós-Esc/pausa)
+    c.addEventListener('click', () => {
+      if (!IS_MOBILE && this._enabled && !this._pointerLocked) this.requestPointerLock();
+    });
+
     document.addEventListener('mousemove', (e) => {
       if (!this._enabled) return;
       if (this._pointerLocked) {
@@ -78,12 +99,6 @@ export class Input {
         e.preventDefault();
       }
     }, { passive: false });
-
-    // ---- Toque ----
-    c.addEventListener('touchstart', (e) => this._touch(e, 'start'), { passive: false });
-    c.addEventListener('touchmove', (e) => this._touch(e, 'move'), { passive: false });
-    c.addEventListener('touchend', (e) => this._touch(e, 'end'), { passive: false });
-    c.addEventListener('touchcancel', (e) => this._touch(e, 'end'), { passive: false });
 
     document.addEventListener('visibilitychange', () => {
       if (document.hidden) this._resetTouches();
@@ -146,6 +161,60 @@ export class Input {
       case 'Tab': if (down) this.inventoryPressed = true; break;
       case 'Escape': if (down) this.pausePressed = true; break;
       case 'ShiftLeft': case 'ShiftRight': this.run = down; if (down) this.holdBreath = this.aim; if (!down) this.holdBreath = false; break;
+    }
+  }
+
+  // ---- Pointer Events (caminho principal no Android e PC) ----
+  _pointerDown(e) {
+    if (e.pointerType === 'mouse') {
+      if (this._pointerLocked) {
+        if (e.button === 0) { this._fireHeld = true; this.firePressed = true; }
+        if (e.button === 2) this.aim = true;
+      }
+      return;
+    }
+    if (!this._enabled) return;
+    e.preventDefault();
+    try { this.canvas.setPointerCapture(e.pointerId); } catch (_) {}
+    const w = window.innerWidth, h = window.innerHeight;
+    const inJoyZone = e.clientX < w * JOYSTICK.zoneX && e.clientY > h * JOYSTICK.zoneY;
+    if (inJoyZone && this._joyPointer === null) {
+      this._joyPointer = e.pointerId;
+      this._joyOrigin = { x: e.clientX, y: e.clientY };
+    } else if (!inJoyZone && this._touchLook === null) {
+      this._touchLook = { id: e.pointerId, x: e.clientX, y: e.clientY };
+    }
+  }
+
+  _pointerMove(e) {
+    if (e.pointerType === 'mouse') return;
+    if (!this._enabled) return;
+    e.preventDefault();
+    if (e.pointerId === this._joyPointer) {
+      const dx = e.clientX - this._joyOrigin.x, dy = e.clientY - this._joyOrigin.y;
+      const max = 58;
+      const len = Math.hypot(dx, dy);
+      const f = len > max ? max / len : 1;
+      this.move.x = clamp((dx * f) / max, -1, 1);
+      this.move.y = clamp((-dy * f) / max, -1, 1);
+    } else if (this._touchLook && e.pointerId === this._touchLook.id) {
+      this._lookX += (e.clientX - this._touchLook.x) * 0.0052 * this.touchSensitivity;
+      this._lookY += (e.clientY - this._touchLook.y) * 0.0052 * this.touchSensitivity;
+      this._touchLook.x = e.clientX; this._touchLook.y = e.clientY;
+    }
+  }
+
+  _pointerUp(e) {
+    if (e.pointerType === 'mouse') {
+      if (e.button === 0) this._fireHeld = false;
+      if (e.button === 2) this.aim = false;
+      return;
+    }
+    if (e.pointerId === this._joyPointer) {
+      this._joyPointer = null;
+      this.move.x = 0; this.move.y = 0;
+    } else if (this._touchLook && e.pointerId === this._touchLook.id) {
+      this._touchLook = null;
     }
   }
 

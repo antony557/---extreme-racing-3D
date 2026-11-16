@@ -18,7 +18,7 @@ export const MOBILE_LAYOUT = {
   'btn-jump':      { x: 87.5, y: 30,   w: 7,   h: 15.6 },
   'btn-binoc':     { x: 77.5, y: 32.2, w: 7,   h: 15.6 },
   'btn-interact':  { x: 68,   y: 35.6, w: 6.5, h: 14.4 },
-  'btn-med':       { x: 58.75,y: 41.7, w: 6.5, h: 14.4 },
+  'btn-med':       { x: 13.5, y: 44.4, w: 6.5, h: 11.1 },
   'btn-inventory': { x: 90,   y: 12.2, w: 8,   h: 10 },
   'btn-pause':     { x: 81,   y: 12.2, w: 8,   h: 10 },
 };
