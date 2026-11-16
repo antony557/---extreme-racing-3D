@@ -36,6 +36,7 @@ export class Input {
     this._joyPointer = null;
     this._joyOrigin = { x: 0, y: 0 };
     this._enabled = true;
+    this._ring = (typeof document !== 'undefined') ? document.getElementById('touch-look-ring') : null;
 
     this._bind();
   }
@@ -56,15 +57,25 @@ export class Input {
       this._pointerLocked = document.pointerLockElement === c;
     });
 
-    if (typeof window !== 'undefined' && window.PointerEvent) {
-      // Pointer Events unificados (Android/PC). setPointerCapture garante que o
-      // dedo continue girando a câmera MESMO passando por cima dos botões.
+    // Detecção de toque: em aparelhos touch usamos Touch Events como caminho
+    // principal (os mais confiáveis no Android — o touchmove continua mirando
+    // no elemento onde o dedo nasceu, então NUNCA é sequestrado por botões);
+    // Pointer Events ficam para o mouse e como fallback universal.
+    this._hasTouch = typeof window !== 'undefined' &&
+      ('ontouchstart' in window || (navigator.maxTouchPoints || 0) > 0);
+
+    if (this._hasTouch) {
+      c.addEventListener('touchstart', (e) => this._touch(e, 'start'), { passive: false });
+      c.addEventListener('touchmove', (e) => this._touch(e, 'move'), { passive: false });
+      c.addEventListener('touchend', (e) => this._touch(e, 'end'), { passive: false });
+      c.addEventListener('touchcancel', (e) => this._touch(e, 'end'), { passive: false });
+    }
+    if (window.PointerEvent) {
       c.addEventListener('pointerdown', (e) => this._pointerDown(e));
       c.addEventListener('pointermove', (e) => this._pointerMove(e));
       c.addEventListener('pointerup', (e) => this._pointerUp(e));
       c.addEventListener('pointercancel', (e) => this._pointerUp(e));
-    } else {
-      // Fallback antigo (touch events) — navegadores sem PointerEvent
+    } else if (!this._hasTouch) {
       c.addEventListener('mousedown', (e) => {
         if (this._pointerLocked) {
           if (e.button === 0) { this._fireHeld = true; this.firePressed = true; }
@@ -75,10 +86,6 @@ export class Input {
         if (e.button === 0) this._fireHeld = false;
         if (e.button === 2) this.aim = false;
       });
-      c.addEventListener('touchstart', (e) => this._touch(e, 'start'), { passive: false });
-      c.addEventListener('touchmove', (e) => this._touch(e, 'move'), { passive: false });
-      c.addEventListener('touchend', (e) => this._touch(e, 'end'), { passive: false });
-      c.addEventListener('touchcancel', (e) => this._touch(e, 'end'), { passive: false });
     }
 
     // PC: clique recaptura o mouse se o pointer lock caiu (pós-Esc/pausa)
@@ -112,6 +119,17 @@ export class Input {
     this._joyPointer = null;
     this.move.x = 0; this.move.y = 0;
     this._fireHeld = false;
+    this._lookRing(null);
+  }
+
+  _lookRing(x, y) {
+    const r = this._ring;
+    if (!r) return;
+    if (x == null) { r.style.opacity = '0'; return; }
+    const s = r.style;
+    s.opacity = '0.55';
+    s.left = (x - 34) + 'px';
+    s.top = (y - 34) + 'px';
   }
 
   _bindButtons() {
@@ -166,6 +184,7 @@ export class Input {
 
   // ---- Pointer Events (caminho principal no Android e PC) ----
   _pointerDown(e) {
+    if (e.pointerType !== 'mouse' && this._hasTouch) return; // toque já tratado por Touch Events
     if (e.pointerType === 'mouse') {
       if (this._pointerLocked) {
         if (e.button === 0) { this._fireHeld = true; this.firePressed = true; }
@@ -187,6 +206,7 @@ export class Input {
   }
 
   _pointerMove(e) {
+    if (e.pointerType !== 'mouse' && this._hasTouch) return;
     if (e.pointerType === 'mouse') return;
     if (!this._enabled) return;
     e.preventDefault();
@@ -198,13 +218,14 @@ export class Input {
       this.move.x = clamp((dx * f) / max, -1, 1);
       this.move.y = clamp((-dy * f) / max, -1, 1);
     } else if (this._touchLook && e.pointerId === this._touchLook.id) {
-      this._lookX += (e.clientX - this._touchLook.x) * 0.0052 * this.touchSensitivity;
-      this._lookY += (e.clientY - this._touchLook.y) * 0.0052 * this.touchSensitivity;
+      this._lookX += (e.clientX - this._touchLook.x) * 0.0065 * this.touchSensitivity;
+      this._lookY += (e.clientY - this._touchLook.y) * 0.0065 * this.touchSensitivity;
       this._touchLook.x = e.clientX; this._touchLook.y = e.clientY;
     }
   }
 
   _pointerUp(e) {
+    if (e.pointerType !== 'mouse' && this._hasTouch) return;
     if (e.pointerType === 'mouse') {
       if (e.button === 0) this._fireHeld = false;
       if (e.button === 2) this.aim = false;
@@ -243,9 +264,10 @@ export class Input {
           this.move.x = clamp((dx * f) / max, -1, 1);
           this.move.y = clamp((-dy * f) / max, -1, 1);
         } else if (this._touchLook && t.identifier === this._touchLook.id) {
-          this._lookX += (t.clientX - this._touchLook.x) * 0.0042 * this.touchSensitivity;
-          this._lookY += (t.clientY - this._touchLook.y) * 0.0042 * this.touchSensitivity;
+          this._lookX += (t.clientX - this._touchLook.x) * 0.0065 * this.touchSensitivity;
+          this._lookY += (t.clientY - this._touchLook.y) * 0.0065 * this.touchSensitivity;
           this._touchLook.x = t.clientX; this._touchLook.y = t.clientY;
+          this._lookRing(t.clientX, t.clientY);
         }
       } else {
         // touchend/touchcancel SEMPRE processados, mesmo com input desabilitado
@@ -255,6 +277,7 @@ export class Input {
           this.move.x = 0; this.move.y = 0;
         } else if (this._touchLook && t.identifier === this._touchLook.id) {
           this._touchLook = null;
+          this._lookRing(null);
         }
       }
     }
