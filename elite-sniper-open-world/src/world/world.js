@@ -226,7 +226,12 @@ export class World {
   }
 
   update(dt, playerPos, audio) {
-    this.sky.update(dt, playerPos.x, playerPos.z, this.weather);
+    this.sky.update(dt, playerPos.x, playerPos.z, {
+      cloud: this.weather.state.cloud,
+      lightMul: this.weather.state.lightMul,
+      windX: this.weather.windX,
+      windZ: this.weather.windZ,
+    });
     this.weather.update(dt, playerPos.x, playerPos.z, this.sky, audio);
     this.terrain.update(playerPos.x, playerPos.z);
     this.vegetation.update(playerPos.x, playerPos.z, this.sky.time);

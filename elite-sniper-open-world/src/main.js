@@ -63,7 +63,6 @@ class Game {
       alive: true, faction: 'player', isPlayer: true, ref: null,
     };
     this.world.addEntity(this.playerEntity);
-    this.weapons.setShooterEntity(this.playerEntity);
 
     this.cameraCtl = new CameraController(this.camera, this.player, this.input);
     this.weapons = new WeaponSystem(this.camera, this.world, this.ballistics, this.audio, {
@@ -74,6 +73,7 @@ class Game {
       onStats: (k, v) => addStat(k, v),
       onAmmoChange: () => {},
     });
+    this.weapons.setShooterEntity(this.playerEntity);
 
     this.animalMgr = new AnimalManager(this.world, this.audio);
     this.npcMgr = new NpcManager(this.world, this.audio);
@@ -428,6 +428,7 @@ class Game {
   _updatePlaying(dt) {
     const input = this.input;
 
+    if (!this.player.alive) { this._onPlayerDeath(); return; }
     if (input.pausePressed) { this.pause(); input.endFrame(); return; }
     if (input.inventoryPressed) {
       this.pause();
