@@ -1,5 +1,15 @@
 import { formatTime, clamp } from './utils.js';
 
+function rr(x, px, py, w, h, r) {
+  x.beginPath();
+  x.moveTo(px + r, py);
+  x.arcTo(px + w, py, px + w, py + h, r);
+  x.arcTo(px + w, py + h, px, py + h, r);
+  x.arcTo(px, py + h, px, py, r);
+  x.arcTo(px, py, px + w, py, r);
+  x.closePath();
+}
+
 export class HUD {
   constructor() {
     this.root = document.getElementById('hud');
@@ -21,6 +31,11 @@ export class HUD {
     this.msgTimer = null;
     this.trackPts = null;
     this.mapTransform = null;
+    this.mapBase = document.createElement('canvas');
+    this.mapBase.width = this.minimap.width;
+    this.mapBase.height = this.minimap.height;
+    this._lastLapTxt = '';
+    this._lastTimeTxt = '';
   }
 
   show(v) { this.root.classList.toggle('hidden', !v); }
@@ -31,7 +46,7 @@ export class HUD {
   }
 
   redrawMinimapBase() {
-    const c = this.minimap, x = this.mctx;
+    const c = this.mapBase, x = c.getContext('2d');
     const w = c.width, h = c.height;
     x.clearRect(0, 0, w, h);
     if (!this.trackPts) return;
@@ -45,9 +60,10 @@ export class HUD {
     const sh = (h - pad * 2) / Math.max(mxy - mny, 0.001);
     const sc = Math.min(sw, sh);
     this.mapTransform = { sc, ox: (w - (mxx - mnx) * sc) / 2 - mnx * sc, oy: (h - (mxy - mny) * sc) / 2 - mny * sc };
-    x.strokeStyle = 'rgba(255,255,255,0.85)';
-    x.lineWidth = 4;
     x.lineJoin = 'round';
+    x.lineCap = 'round';
+    x.strokeStyle = 'rgba(232,32,42,0.9)';
+    x.lineWidth = 7;
     x.beginPath();
     this.trackPts.forEach((p, i) => {
       const px = this.mapTransform.ox + p[0] * sc;
@@ -56,8 +72,11 @@ export class HUD {
     });
     x.closePath();
     x.stroke();
-    x.strokeStyle = 'rgba(0,0,0,0.55)';
-    x.lineWidth = 1.5;
+    x.strokeStyle = 'rgba(235,240,246,0.95)';
+    x.lineWidth = 3.5;
+    x.stroke();
+    x.strokeStyle = 'rgba(8,11,17,0.55)';
+    x.lineWidth = 1.2;
     x.stroke();
   }
 
@@ -71,7 +90,7 @@ export class HUD {
   drawMinimap(cars, track) {
     const c = this.minimap, x = this.mctx;
     x.clearRect(0, 0, c.width, c.height);
-    this.redrawMinimapBase();
+    x.drawImage(this.mapBase, 0, 0);
     if (!this.mapTransform) return;
     for (let i = cars.length - 1; i >= 0; i--) {
       const car = cars[i];
@@ -79,10 +98,10 @@ export class HUD {
       const pt = this.mapPoint(car.physics.pos.x, car.physics.pos.z, track);
       if (!pt) continue;
       x.beginPath();
-      x.arc(pt[0], pt[1], car.isPlayer ? 5 : 3.4, 0, 7);
+      x.arc(pt[0], pt[1], car.isPlayer ? 5.5 : 3.6, 0, 7);
       x.fillStyle = car.isPlayer ? '#ff6a00' : car.colorHex;
       x.fill();
-      if (car.isPlayer) { x.strokeStyle = '#fff'; x.lineWidth = 1.6; x.stroke(); }
+      if (car.isPlayer) { x.strokeStyle = '#fff'; x.lineWidth = 1.8; x.stroke(); }
     }
   }
 
@@ -90,83 +109,92 @@ export class HUD {
     const c = this.speedo, x = this.sctx;
     const w = c.width, h = c.height;
     x.clearRect(0, 0, w, h);
-    const cx = w / 2, cy = h / 2, r = w / 2 - 10;
+    const cx = w / 2, cy = h / 2, r = w / 2 - 8;
+    const a0 = Math.PI * 0.75, a1 = Math.PI * 2.25;
+
     x.beginPath();
     x.arc(cx, cy, r, 0, Math.PI * 2);
-    x.fillStyle = 'rgba(8,12,18,0.72)';
+    x.fillStyle = 'rgba(8,11,17,0.78)';
     x.fill();
-    x.strokeStyle = 'rgba(255,255,255,0.25)';
     x.lineWidth = 2;
+    x.strokeStyle = 'rgba(255,255,255,0.16)';
+    x.stroke();
+    x.beginPath();
+    x.arc(cx, cy, r, 0, Math.PI * 2);
+    x.fillStyle = 'rgba(8,11,17,0)';
+    x.strokeStyle = 'rgba(232,32,42,0.55)';
+    x.lineWidth = 3;
+    x.beginPath();
+    x.arc(cx, cy, r + 1, Math.PI * 0.62, Math.PI * 0.88);
+    x.stroke();
+    x.strokeStyle = 'rgba(31,125,255,0.55)';
+    x.beginPath();
+    x.arc(cx, cy, r + 1, Math.PI * 0.12, Math.PI * 0.38);
     x.stroke();
 
-    const a0 = Math.PI * 0.75, a1 = Math.PI * 2.25;
-    x.lineWidth = 7;
-    x.strokeStyle = 'rgba(255,255,255,0.12)';
-    x.beginPath();
-    x.arc(cx, cy, r - 12, a0, a1);
-    x.stroke();
-    const frac = clamp(kmh / maxKmh, 0, 1);
-    x.strokeStyle = '#00d4ff';
-    x.beginPath();
-    x.arc(cx, cy, r - 12, a0, a0 + (a1 - a0) * frac * 0.7);
-    x.stroke();
-    x.strokeStyle = '#ff6a00';
-    x.beginPath();
-    x.arc(cx, cy, r - 12, a0 + (a1 - a0) * 0.7, a0 + (a1 - a0) * frac);
-    x.stroke();
+    x.lineCap = 'round';
+    x.lineWidth = 9;
+    x.strokeStyle = 'rgba(255,255,255,0.09)';
+    x.beginPath(); x.arc(cx, cy, r - 15, a0, a1); x.stroke();
+    const rf = clamp(rpm, 0, 1);
+    x.strokeStyle = rf > 0.82 ? '#ff2233' : '#1f7dff';
+    x.beginPath(); x.arc(cx, cy, r - 15, a0, a0 + (a1 - a0) * rf); x.stroke();
 
-    x.strokeStyle = 'rgba(255,255,255,0.35)';
     x.lineWidth = 2;
-    for (let i = 0; i <= 12; i++) {
-      const a = a0 + (a1 - a0) * (i / 12);
+    x.strokeStyle = 'rgba(255,255,255,0.32)';
+    x.lineCap = 'butt';
+    for (let i = 0; i <= 10; i++) {
+      const a = a0 + (a1 - a0) * (i / 10);
+      const c1 = Math.cos(a), s1 = Math.sin(a);
       x.beginPath();
-      x.moveTo(cx + Math.cos(a) * (r - 22), cy + Math.sin(a) * (r - 22));
-      x.lineTo(cx + Math.cos(a) * (r - 16), cy + Math.sin(a) * (r - 16));
+      x.moveTo(cx + c1 * (r - 26), cy + s1 * (r - 26));
+      x.lineTo(cx + c1 * (r - 20), cy + s1 * (r - 20));
       x.stroke();
     }
 
-    const na = a0 + (a1 - a0) * frac;
-    x.strokeStyle = '#ff6a00';
+    x.textAlign = 'center';
+    x.fillStyle = '#f4f6f8';
+    x.font = '900 52px Arial';
+    x.fillText(String(Math.round(kmh)), cx, cy + 6);
+    x.font = '700 12px Arial';
+    x.fillStyle = 'rgba(255,255,255,0.55)';
+    x.fillText('KM/H', cx, cy + 24);
+
+    x.fillStyle = '#1f7dff';
+    rr(x, cx - 17, cy + 34, 34, 30, 6);
+    x.fill();
+    x.fillStyle = '#ffffff';
+    x.font = '900 21px Arial';
+    x.fillText(gear === -1 ? 'R' : String(gear), cx, cy + 56);
+
+    const sf = clamp(kmh / maxKmh, 0, 1);
+    const na = a0 + (a1 - a0) * sf;
+    x.strokeStyle = '#e8202a';
     x.lineWidth = 3.5;
+    x.lineCap = 'round';
     x.beginPath();
-    x.moveTo(cx - Math.cos(na) * 12, cy - Math.sin(na) * 12);
-    x.lineTo(cx + Math.cos(na) * (r - 26), cy + Math.sin(na) * (r - 26));
+    x.moveTo(cx - Math.cos(na) * 10, cy - Math.sin(na) * 10);
+    x.lineTo(cx + Math.cos(na) * (r - 32), cy + Math.sin(na) * (r - 32));
     x.stroke();
     x.beginPath();
     x.arc(cx, cy, 5, 0, 7);
-    x.fillStyle = '#ff6a00';
+    x.fillStyle = '#e8202a';
     x.fill();
-
-    x.fillStyle = '#fff';
-    x.font = '900 34px Arial';
-    x.textAlign = 'center';
-    x.fillText(String(Math.round(kmh)), cx, cy + 30);
-    x.font = '700 11px Arial';
-    x.fillStyle = 'rgba(255,255,255,0.6)';
-    x.fillText('KM/H', cx, cy + 44);
-
-    const rpmFrac = clamp(rpm, 0, 1);
-    x.strokeStyle = rpmFrac > 0.9 ? '#ff2244' : '#00d4ff';
-    x.lineWidth = 4;
-    x.beginPath();
-    x.arc(cx, cy, r - 24, a0, a0 + (a1 - a0) * rpmFrac);
-    x.stroke();
-
-    x.fillStyle = '#ffd75e';
-    x.font = '900 26px Arial';
-    x.fillText(gear === -1 ? 'R' : String(gear), cx, cy - 18);
   }
 
   update(data) {
-    this.el.position.textContent = data.position;
-    this.el.total.textContent = data.total;
-    this.el.lap.textContent = data.lap;
-    this.el.laps.textContent = data.laps;
-    this.el.time.textContent = formatTime(data.time);
-    this.el.laptime.textContent = data.lastLap ? 'Última: ' + formatTime(data.lastLap) : '';
-    this.el.nitro.style.height = Math.round(data.nitro * 100) + '%';
+    const el = this.el;
+    el.position.textContent = data.position;
+    el.total.textContent = data.total;
+    el.lap.textContent = data.lap;
+    el.laps.textContent = data.laps;
+    const timeTxt = formatTime(data.time);
+    if (timeTxt !== this._lastTimeTxt) { el.time.textContent = timeTxt; this._lastTimeTxt = timeTxt; }
+    const lapTxt = data.lastLap ? 'Última: ' + formatTime(data.lastLap) : '';
+    if (lapTxt !== this._lastLapTxt) { el.laptime.textContent = lapTxt; this._lastLapTxt = lapTxt; }
+    el.nitro.style.height = Math.round(data.nitro * 100) + '%';
     this.drawSpeedo(data.speed, data.rpm, data.gear, 380);
-    this.el.wrongway.classList.toggle('hidden', !data.wrongWay);
+    el.wrongway.classList.toggle('hidden', !data.wrongWay);
   }
 
   message(text, duration) {

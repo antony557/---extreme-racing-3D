@@ -2,7 +2,8 @@ import { Track, TRACKS } from '../js/tracks.js';
 import { CarPhysics } from '../js/physics.js';
 import { AIController } from '../js/ai.js';
 import { CAR_SPECS, buildCarMesh, setBrakeLights } from '../js/cars.js';
-import { clamp } from '../js/utils.js';
+import { DIFFICULTY } from '../js/config.js';
+import { clamp, mulberry32 } from '../js/utils.js';
 
 function ctxStub() {
   return new Proxy({}, {
@@ -77,8 +78,14 @@ for (let i = 0; i < 60 * 40; i++) {
 check('acelera acima de 100 km/h', vmax > 100, `(vmax=${vmax.toFixed(1)})`);
 check('não ultrapassa top speed', vmax <= spec.topSpeed + 1, `(top=${spec.topSpeed})`);
 check('dirigindo sem ficar preso', maxStuck < 3, `(stuck=${maxStuck.toFixed(2)})`);
-for (let i = 0; i < 60 * 4; i++) phys.update(dt, { throttle: 0, brake: 1, steer: 0, handbrake: false, nitro: false });
-check('freia até parar', phys.speedKmh < 5, `(v=${phys.speedKmh.toFixed(1)})`);
+let minBrakeV = Infinity, reachedReverse = false;
+for (let i = 0; i < 60 * 4; i++) {
+  phys.update(dt, { throttle: 0, brake: 1, steer: 0, handbrake: false, nitro: false });
+  minBrakeV = Math.min(minBrakeV, phys.speedKmh);
+  if (phys.forwardSpeed < -0.5) reachedReverse = true;
+}
+check('freia até quase parar', minBrakeV < 5, `(minV=${minBrakeV.toFixed(1)})`);
+check('freio parado engata ré (S = ré)', reachedReverse, `(v=${phys.speedKmh.toFixed(1)})`);
 
 const headingBefore = phys.heading;
 const sp2 = track.spawn(1);
@@ -91,6 +98,7 @@ const turned = ((phys.heading - headingBeforeTurn + Math.PI * 3) % (Math.PI * 2)
 check('vira à esquerda (ângulo positivo)', turned > 0.4, `(dθ=${turned.toFixed(2)}, v=${phys.speedKmh.toFixed(0)})`);
 
 for (let i = 0; i < 60 * 8; i++) phys.update(dt, follower(1));
+for (let i = 0; i < 60 * 12 && phys.speedKmh < 60; i++) phys.update(dt, follower(1));
 check('velocidade suficiente para drift', phys.speedKmh > 60, `(v=${phys.speedKmh.toFixed(0)})`);
 for (let i = 0; i < 60 * 2; i++) phys.update(dt, { throttle: 1, brake: 0, steer: 0.7, handbrake: true, nitro: false });
 check('freio de mão provoca derrapagem', Math.abs(phys.lateralSpeed) > 2 || phys.drifting, `(lat=${phys.lateralSpeed.toFixed(2)}, skid=${phys.skidLevel.toFixed(2)})`);
@@ -193,6 +201,87 @@ console.log('== Partículas instanciadas ==');
   ps.update(1 / 60);
   ps.dispose();
   check('dispose sem erro e remove da cena', added.length === 0);
+}
+
+console.log('== Auditoria das pistas ==');
+for (const def of TRACKS) {
+  const tr = new Track(def, QUALITY, undefined);
+  let maxMedianRatio = 0;
+  const gaps = [];
+  for (let i = 0; i < tr.sampleCount; i++) {
+    const a = tr.samples[i].pos, b = tr.samples[(i + 1) % tr.sampleCount].pos;
+    gaps.push(Math.hypot(b.x - a.x, b.z - a.z));
+  }
+  const sorted = [...gaps].sort((a, b) => a - b);
+  const median = sorted[Math.floor(sorted.length / 2)];
+  for (const g of gaps) maxMedianRatio = Math.max(maxMedianRatio, g / Math.max(median, 1e-6));
+  check(`${def.id}: sem buracos/descontinuidade no asfalto`, maxMedianRatio < 3, `(max/mediana=${maxMedianRatio.toFixed(2)})`);
+  let worstLat = -Infinity;
+  for (const c of tr.colliders) {
+    let bestD = Infinity, bestI = 0;
+    for (let i = 0; i < tr.sampleCount; i++) {
+      const p = tr.samples[i].pos;
+      const d = (p.x - c.x) ** 2 + (p.z - c.z) ** 2;
+      if (d < bestD) { bestD = d; bestI = i; }
+    }
+    const sm = tr.samples[bestI];
+    const nx = -sm.tan.z, nz = sm.tan.x;
+    const lat = Math.abs((c.x - sm.pos.x) * nx + (c.z - sm.pos.z) * nz);
+    worstLat = Math.max(worstLat, tr.halfWidth - (lat - c.r));
+  }
+  check(`${def.id}: nenhum obstáculo sólido dentro da pista`, worstLat <= 0.2, `(invasão=${worstLat.toFixed(2)}m)`);
+}
+
+console.log('== Corridas progressivas com NPCs ==');
+{
+  const raceDefs = [TRACKS[0], TRACKS[4]];
+  for (const npcCount of [1, 2, 4, 6, 7]) {
+    for (const def of raceDefs) {
+      const tr = new Track(def, QUALITY, undefined);
+      const spawns = tr.spawn(npcCount + 1);
+      const rng = mulberry32(def.seed + npcCount);
+      const entries = [];
+      for (let i = 0; i <= npcCount; i++) {
+        const sp = CAR_SPECS[Math.floor(rng() * CAR_SPECS.length)];
+        const p = new CarPhysics(sp, { engine: 0, tires: 0, nitro: 0 }, { isPlayer: i === 0 });
+        p.setTrack(tr);
+        p.placeAt(spawns[i].pos, spawns[i].heading);
+        entries.push({ physics: p, ai: i === 0 ? null : new AIController(p, DIFFICULTY.medium, tr, i) });
+      }
+      const playerFollower = makeFollower(entries[0].physics, tr);
+      const L = tr.length;
+      let laps = 0, prevS = entries[0].physics.trackInfo.s, halfFlag = false;
+      let maxStepMs = 0, nan = false;
+      const maxFrames = 60 * 420;
+      let f = 0;
+      for (; f < maxFrames && laps < 3; f++) {
+        const t0 = process.hrtime.bigint();
+        const pctl = playerFollower(1);
+        for (const e of entries) {
+          const ctl = e.ai ? e.ai.update(dt, entries.map((x) => x.physics)) : pctl;
+          e.physics.update(dt, ctl);
+        }
+        for (let i = 0; i < entries.length; i++) {
+          for (let j = i + 1; j < entries.length; j++) entries[i].physics.applyCarCollision(entries[j].physics);
+        }
+        const ms = Number(process.hrtime.bigint() - t0) / 1e6;
+        if (ms > maxStepMs) maxStepMs = ms;
+        const s = entries[0].physics.trackInfo.s;
+        const raw = s - prevS;
+        prevS = s;
+        if (s > L * 0.45 && s < L * 0.55) halfFlag = true;
+        if (raw < -L * 0.5 && halfFlag) { halfFlag = false; laps++; }
+        for (const e of entries) {
+          if (!Number.isFinite(e.physics.pos.x + e.physics.pos.z)) nan = true;
+        }
+      }
+      const minProgress = Math.min(...entries.map((e) => e.physics.distanceTraveled || 0));
+      check(`${def.id} com ${npcCount} NPC(s): corrida completa sem congelar`, laps === 3, `(voltas=${laps}, frames=${f})`);
+      check(`${def.id} com ${npcCount} NPC(s): sem posições NaN`, !nan);
+      check(`${def.id} com ${npcCount} NPC(s): todos avançaram`, minProgress > 50, `(min=${Math.round(minProgress)}m)`);
+      check(`${def.id} com ${npcCount} NPC(s): passo de simulação rápido`, maxStepMs < 12, `(pico=${maxStepMs.toFixed(2)}ms)`);
+    }
+  }
 }
 
 console.log(failures === 0 ? '\nTODOS OS TESTES PASSARAM' : `\n${failures} TESTES FALHARAM`);

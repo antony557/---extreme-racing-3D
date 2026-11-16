@@ -156,20 +156,22 @@
 </div>
 
 <div id="hud" class="hidden">
-  <div class="hud-top-left">
-    <div class="hud-pos"><span id="hud-position">1</span><small>/ <span id="hud-total">6</span></small></div>
-    <div class="hud-lap">VOLTA <span id="hud-lap">1</span>/<span id="hud-laps">3</span></div>
-    <div class="hud-time" id="hud-time">00:00.00</div>
-    <div class="hud-laptime" id="hud-laptime"></div>
+  <div class="hud-info hud-panel">
+    <div class="hud-pos"><span id="hud-position">1</span><small>/<span id="hud-total">6</span></small><em>POS</em></div>
+    <div class="hud-info-col">
+      <div class="hud-lap">VOLTA <span id="hud-lap">1</span>/<span id="hud-laps">3</span></div>
+      <div class="hud-time" id="hud-time">00:00.00</div>
+      <div class="hud-laptime" id="hud-laptime"></div>
+    </div>
   </div>
   <div class="hud-top-right">
     <button class="hud-btn" id="btn-fullscreen-hud" title="Tela cheia">&#x26F6;</button>
     <button class="hud-btn" id="btn-pause">&#10074;&#10074;</button>
   </div>
-  <canvas id="minimap" width="180" height="180"></canvas>
-  <div class="hud-bottom-right">
-    <div class="nitro-wrap"><div class="nitro-bar"><div id="nitro-fill"></div></div><span class="nitro-label">NITRO</span></div>
+  <div class="hud-map hud-panel"><canvas id="minimap" width="180" height="180"></canvas></div>
+  <div class="hud-speedo-wrap">
     <canvas id="speedo" width="220" height="220"></canvas>
+    <div class="nitro-wrap"><div class="nitro-bar"><div id="nitro-fill"></div></div><span class="nitro-label">NITRO</span></div>
   </div>
   <div class="hud-message" id="hud-message"></div>
   <div class="hud-wrongway hidden" id="hud-wrongway">CONTRAMÃO!</div>

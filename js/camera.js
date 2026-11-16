@@ -71,6 +71,10 @@ export class CameraRig {
     }
     const k = 1 - Math.exp(-lambda * dt);
     this.pos.lerp(tp, k);
+    if (this.mode === 0 || this.mode === 1) {
+      const minY = carPos.y + 0.55;
+      if (this.pos.y < minY) this.pos.y = minY;
+    }
     this.look.lerp(tl, Math.min(1, k * 1.4));
     this.shake = Math.max(0, this.shake - dt * 2.2);
     const rumble = car.onGrass && Math.abs(car.forwardSpeed) > 6 ? 0.035 : 0;

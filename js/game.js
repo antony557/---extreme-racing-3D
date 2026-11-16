@@ -204,6 +204,7 @@ export class Game {
     const s = this.save.data.settings.touch;
     const active = this.state === 'race' && (s === 'on' || (s === 'auto' && isTouchDevice()));
     tc.classList.toggle('hidden', !active);
+    document.body.classList.toggle('touch', active);
   }
 
   pauseRace() {
@@ -276,6 +277,21 @@ export class Game {
   }
 
   loop() {
+    try {
+      this.tick();
+      this._errStreak = 0;
+    } catch (err) {
+      console.error('ERRO no loop do jogo:', err);
+      this._errStreak = (this._errStreak || 0) + 1;
+      if (this._errStreak === 1 && this.ui) this.ui.toast('Erro recuperado automaticamente.', 1800);
+      if (this._errStreak > 240) {
+        this.renderer.setAnimationLoop(null);
+        if (this.ui) this.ui.toast('Erro crítico recorrente. Recarregue a página.', 8000);
+      }
+    }
+  }
+
+  tick() {
     const dt = Math.min(this.clock.getDelta(), 0.05);
     this.monitorPerformance(dt);
 

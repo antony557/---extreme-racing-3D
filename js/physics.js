@@ -75,6 +75,18 @@ export class CarPhysics {
   }
 
   update(dt, ctl) {
+    if (!Number.isFinite(this.pos.x + this.pos.z + this.heading) || !Number.isFinite(this.vel.x + this.vel.z)) {
+      this.vel.set(0, 0, 0);
+      this.heading = 0;
+      this.hintIndex = 0;
+      if (this.track) {
+        const p = this.track.pointAtS(0);
+        this.pos.set(p.pos.x, 0, p.pos.z);
+        this.heading = Math.atan2(p.tan.x, p.tan.z);
+      } else {
+        this.pos.set(0, 0, 0);
+      }
+    }
     const t = this.track;
     const info = t ? t.nearest(this.pos, this.hintIndex) : null;
     if (info) {
@@ -182,10 +194,13 @@ export class CarPhysics {
     this.roll += (rollTarget - this.roll) * Math.min(1, dt * 7);
     this.pitch += (pitchTarget - this.pitch) * Math.min(1, dt * 7);
 
+    this.wallTime = this._pinned ? (this.wallTime || 0) + dt : 0;
+    this._pinned = false;
     if (Math.abs(vF) < 0.6 && Math.abs(vR) < 0.6) this.stuckTime += dt;
     else this.stuckTime = 0;
-    if (this.stuckTime > (this.isPlayer ? 8 : 4)) {
+    if (this.stuckTime > (this.isPlayer ? 8 : 4) || this.wallTime > 2.5) {
       this.stuckTime = 0;
+      this.wallTime = 0;
       this.respawn();
     }
   }
@@ -219,11 +234,16 @@ export class CarPhysics {
     const t = this.track;
     const limit = t.halfWidth + t.shoulder;
     const info = this.trackInfo;
-    if (!info.tangent || Math.abs(info.lateral) <= limit) return;
+    if (!info.tangent) return;
+    const overs = Math.abs(info.lateral) - limit;
+    if (overs <= 0) {
+      this.wallTime = 0;
+      return;
+    }
     const sign = Math.sign(info.lateral);
     const nx = -info.tangent.z * sign, nz = info.tangent.x * sign;
-    this.pos.x = info.pos.x + nx * limit;
-    this.pos.z = info.pos.z + nz * limit;
+    this.pos.x -= nx * overs;
+    this.pos.z -= nz * overs;
     const vn = this.vel.x * nx + this.vel.z * nz;
     if (vn > 0) {
       this.vel.x -= nx * vn * 1.4;
@@ -232,6 +252,7 @@ export class CarPhysics {
       if (vn > 3) this.events.push({ type: 'collision', impact: vn, x: this.pos.x, z: this.pos.z });
     }
     info.lateral = limit * sign;
+    this._pinned = Math.abs(info.ds || 0) < 0.02;
   }
 
   applyCarCollision(other) {

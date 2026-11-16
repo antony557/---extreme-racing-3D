@@ -14,13 +14,25 @@ export class AIController {
     this.eliminated = false;
     this.avoidTimer = 0;
     this.avoidDir = 0;
+    this.lastBrake = false;
+    this._acc = 1;
+    this._ctl = { throttle: 0, brake: 0, steer: 0, handbrake: false, nitro: false };
+    this._brakeCtl = { throttle: 0, brake: 1, steer: 0, handbrake: false, nitro: false };
   }
 
   update(dt, cars) {
-    const car = this.car;
-    if (this.eliminated) {
-      return { throttle: 0, brake: 1, steer: 0, handbrake: false, nitro: false };
+    if (this.eliminated) return this._brakeCtl;
+    this._acc += dt;
+    if (this._acc >= 0.05) {
+      this._acc = 0;
+      this.decide(cars, dt);
     }
+    return this._ctl;
+  }
+
+  decide(cars, dt) {
+    const car = this.car;
+    const ctl = this._ctl;
     const info = car.trackInfo;
     const track = this.track;
     const speed = Math.abs(car.forwardSpeed);
@@ -82,10 +94,10 @@ export class AIController {
     else if (vNow > vTarget + 1.5) brake = clamp((vNow - vTarget) * 0.28, 0, 1);
     else throttle = 0.4;
 
-    if (car.stuckTime > 4) car.respawn();
-
+    ctl.throttle = throttle;
+    ctl.brake = brake;
+    ctl.steer = steer;
     this.lastBrake = brake > 0;
-    return { throttle, brake, steer, handbrake: false, nitro: false };
   }
 
   findAheadSpeed(cars) {

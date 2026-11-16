@@ -301,9 +301,32 @@ export function buildCarMesh(spec, opts = {}) {
     paintParts.push({ geo: boxGeo(0.55, 0.1, b.wid * 0.32, -halfL + b.cabinF * L - 0.85, b.hoodH + 0.06, 0) });
   }
 
-  for (const s of [-1, 1]) {
-    chromeParts.push({ geo: cylGeo(0.055, 0.055, 0.16, 10, -halfL - 0.04, 0.24, s * b.wid * 0.24, 0, Math.PI / 2) });
-    trimParts.push({ geo: cylGeo(0.04, 0.04, 0.05, 8, -halfL - 0.12, 0.24, s * b.wid * 0.24, 0, Math.PI / 2) });
+  const midEngine = b.style === 'sport' || b.style === 'gt' || b.style === 'super' || b.style === 'hyper' || b.style === 'proto';
+  if (midEngine) {
+    const intX = -halfL + 0.6 * L;
+    const intY = beltY(b, 0.6);
+    for (const s of [-1, 1]) {
+      trimParts.push({ geo: boxGeo(0.55, 0.24, 0.1, intX, intY - 0.08, s * (b.wid / 2 - 0.01)) });
+      paintParts.push({ geo: boxGeo(0.6, 0.05, 0.12, intX + 0.12, intY + 0.06, s * (b.wid / 2 - 0.03)) });
+    }
+    trimParts.push({ geo: boxGeo(0.34, 0.16, b.wid * 0.52, -halfL + 0.52, beltY(b, 0.09) - 0.02, 0) });
+    for (const o of [-0.32, 0, 0.32]) {
+      trimParts.push({ geo: boxGeo(0.3, 0.15, 0.04, -halfL + 0.16, 0.17, o * b.wid) });
+    }
+  }
+
+  if (midEngine && b.style !== 'sport' && b.style !== 'gt') {
+    for (const s of [-1, 1]) {
+      for (const o of [0.15, 0.31]) {
+        chromeParts.push({ geo: cylGeo(0.048, 0.048, 0.16, 10, -halfL - 0.04, 0.26, s * o, 0, Math.PI / 2) });
+        trimParts.push({ geo: cylGeo(0.038, 0.038, 0.05, 8, -halfL - 0.12, 0.26, s * o, 0, Math.PI / 2) });
+      }
+    }
+  } else {
+    for (const s of [-1, 1]) {
+      chromeParts.push({ geo: cylGeo(0.055, 0.055, 0.16, 10, -halfL - 0.04, 0.24, s * b.wid * 0.24, 0, Math.PI / 2) });
+      trimParts.push({ geo: cylGeo(0.04, 0.04, 0.05, 8, -halfL - 0.12, 0.24, s * b.wid * 0.24, 0, Math.PI / 2) });
+    }
   }
 
   chromeParts.push({ geo: boxGeo(0.02, 0.13, 0.38, halfL + 0.01, b.noseH * 0.38, 0) });

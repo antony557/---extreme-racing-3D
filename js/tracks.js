@@ -389,7 +389,8 @@ export class Track {
 
   queryColliders(x, z, r) {
     const cell = 20;
-    const out = [];
+    const out = this._qOut || (this._qOut = []);
+    out.length = 0;
     const x0 = Math.floor((x - r) / cell), x1 = Math.floor((x + r) / cell);
     const z0 = Math.floor((z - r) / cell), z1 = Math.floor((z + r) / cell);
     for (let cx = x0; cx <= x1; cx++) for (let cz = z0; cz <= z1; cz++) {
@@ -492,10 +493,11 @@ export class Track {
       this.group.add(trunks, leaves, leaves2);
     }
 
-    if (theme === 'highway') {
+    if (theme === 'highway' || theme === 'mountain') {
       const railMat = new THREE.MeshStandardMaterial({ color: 0xb8c0c8, metalness: 0.85, roughness: 0.3 });
+      const railOff = this.halfWidth + this.shoulder - 0.12;
       for (const side of [1, -1]) {
-        const rail = new THREE.Mesh(verticalRibbon(s, (this.halfWidth + 0.6) * side, 0.45, 0.85), railMat);
+        const rail = new THREE.Mesh(verticalRibbon(s, railOff * side, 0.45, 0.85), railMat);
         this.group.add(rail);
       }
       const postGeo = new THREE.BoxGeometry(0.14, 0.85, 0.14);
@@ -506,7 +508,7 @@ export class Track {
       for (let i = 0; i < s.length && pi < postCount; i += 6) {
         for (const side of [1, -1]) {
           const nx = -s[i].tan.z * side, nz = s[i].tan.x * side;
-          m4.setPosition(s[i].pos.x + nx * (this.halfWidth + 0.6), s[i].pos.y + 0.42, s[i].pos.z + nz * (this.halfWidth + 0.6));
+          m4.setPosition(s[i].pos.x + nx * railOff, s[i].pos.y + 0.42, s[i].pos.z + nz * railOff);
           posts.setMatrixAt(pi++, m4);
         }
       }

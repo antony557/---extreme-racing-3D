@@ -68,6 +68,7 @@ export class Race {
 
     game.audio.init();
     game.audio.stopMusic();
+    try { game.renderer.compile(this.scene, this.camera); } catch (e) { /* ignore */ }
     this.updateHud();
     this.hud.message('PREPARE-SE', 1.6);
   }
