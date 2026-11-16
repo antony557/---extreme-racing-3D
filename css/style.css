@@ -42,6 +42,7 @@ button { font-family: inherit; color: inherit; background: none; border: none; c
 .menu-left { padding: 0 6vw; display: flex; flex-direction: column; gap: 26px; max-width: 560px; }
 .main-nav { display: flex; flex-direction: column; gap: 12px; width: min(320px, 70vw); }
 .wallet { display: inline-flex; align-items: center; gap: 8px; font-size: 20px; font-weight: 800; color: #ffd75e; }
+.ver-badge { display: inline-block; margin-top: 10px; padding: 4px 12px; font-size: 12px; font-weight: 800; letter-spacing: 2px; color: #fff; background: rgba(232,32,42,.85); border: 1px solid rgba(255,255,255,.25); border-radius: 20px; }
 .coin { width: 18px; height: 18px; border-radius: 50%; background: radial-gradient(circle at 35% 30%, #ffe9a0, #f5b400 60%, #b98000); display: inline-block; box-shadow: 0 0 10px rgba(255, 200, 50, 0.6); }
 
 .screen-header { display: flex; align-items: center; gap: 18px; padding: 18px 4vw; background: linear-gradient(180deg, rgba(0,0,0,0.75), transparent); position: absolute; top: 0; left: 0; right: 0; z-index: 5; }
