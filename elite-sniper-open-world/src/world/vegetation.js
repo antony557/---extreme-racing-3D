@@ -2,7 +2,7 @@
 import * as THREE from 'three';
 import { terrainHeight, terrainSlope, roadDistance, FLAT_SITES } from './heightfield.js';
 import { WORLD } from '../core/config.js';
-import { rng, dist2, fbm } from '../core/utils.js';
+import { rng, dist2, fbm, clamp } from '../core/utils.js';
 
 function mergeGeoms(list) {
   // lista de { geo (não indexada), color: [r,g,b] } -> BufferGeometry única com vertex colors
@@ -20,8 +20,12 @@ function mergeGeoms(list) {
   for (const { g, color, count } of parts) {
     const p = g.attributes.position.array, n = g.attributes.normal.array;
     pos.set(p, o * 3); nor.set(n, o * 3);
-    for (let i = 0; i < count; i++) {
-      col[(o + i) * 3] = color[0]; col[(o + i) * 3 + 1] = color[1]; col[(o + i) * 3 + 2] = color[2];
+    if (color) {
+      for (let i = 0; i < count; i++) {
+        col[(o + i) * 3] = color[0]; col[(o + i) * 3 + 1] = color[1]; col[(o + i) * 3 + 2] = color[2];
+      }
+    } else {
+      col.set(g.attributes.color.array, o * 3);
     }
     o += count;
     g.dispose();
@@ -70,6 +74,8 @@ export function makeBroadleafGeometry() {
     [1.3, 4.0, 0.6, 1.3, 0.27, 0.46, 0.18],
     [-1.2, 4.1, -0.5, 1.4, 0.22, 0.40, 0.15],
     [0.3, 5.4, -0.8, 1.2, 0.26, 0.45, 0.17],
+    [-0.6, 4.9, 1.1, 1.1, 0.29, 0.48, 0.19],
+    [1.0, 5.1, -0.4, 1.0, 0.21, 0.38, 0.14],
   ];
   for (const [x, y, z, r, cr, cg, cb] of blobs) {
     const b = new THREE.IcosahedronGeometry(r, 1);
@@ -89,27 +95,51 @@ export function makeRockGeometry() {
     p.setXYZ(i, p.getX(i) * s, p.getY(i) * (0.6 + rand() * 0.3), p.getZ(i) * s);
   }
   g.computeVertexNormals();
-  return mergeGeoms([{ geo: g, color: [0.46, 0.45, 0.43] }]);
+  // faixas de cor: base mais escura (terra úmida), topo mais claro
+  const col = new Float32Array(p.count * 3);
+  for (let i = 0; i < p.count; i++) {
+    const t = clamp((p.getY(i) + 0.8) / 1.6, 0, 1);
+    const v = 0.36 + t * 0.16 + rand() * 0.05;
+    col[i * 3] = v; col[i * 3 + 1] = v * 0.985; col[i * 3 + 2] = v * 0.95;
+  }
+  g.setAttribute('color', new THREE.BufferAttribute(col, 3));
+  return mergeGeoms([{ geo: g, color: null }]);
 }
 
 export function makeGrassGeometry() {
-  // tufo: 3 planos cruzados com cores de grama
+  // tufo: 6 lâminas afiladas (triângulos) com gradiente base-escura → ponta-clara
+  const rand = rng(4242);
   const parts = [];
-  for (let i = 0; i < 3; i++) {
-    const p = new THREE.PlaneGeometry(0.9, 0.7, 1, 2);
-    p.translate(0, 0.35, 0);
-    p.rotateY((i * Math.PI) / 3);
-    parts.push({ geo: p, color: [0.25, 0.45, 0.16] });
+  for (let i = 0; i < 6; i++) {
+    const h = 0.45 + rand() * 0.35;
+    const w = 0.05 + rand() * 0.035;
+    const lean = (rand() - 0.5) * 0.5;
+    const g = new THREE.BufferGeometry();
+    const pos = new Float32Array([
+      -w, 0, 0,  w, 0, 0,  lean, h, (rand() - 0.5) * 0.12,
+    ]);
+    g.setAttribute('position', new THREE.BufferAttribute(pos, 3));
+    g.setAttribute('normal', new THREE.BufferAttribute(new Float32Array([0, 0, 1, 0, 0, 1, 0, 0, 1]), 3));
+    const shade = 0.75 + rand() * 0.5;
+    const base = [0.13 * shade, 0.26 * shade, 0.08 * shade];
+    const tip = [0.42 * shade, 0.62 * shade, 0.22 * shade];
+    g.setAttribute('color', new THREE.BufferAttribute(new Float32Array([
+      base[0], base[1], base[2], base[0], base[1], base[2], tip[0], tip[1], tip[2],
+    ]), 3));
+    g.rotateY((i / 6) * Math.PI * 2 + rand() * 0.6);
+    parts.push({ geo: g, color: null });
   }
   return mergeGeoms(parts);
 }
 
-function windMaterial(baseOpts) {
+function windMaterial(baseOpts, swayH = 1.2, swayAmp = 0.045) {
   const mat = new THREE.MeshStandardMaterial(baseOpts);
   mat.userData.time = { value: 0 };
   mat.onBeforeCompile = (shader) => {
     shader.uniforms.uTime = mat.userData.time;
-    shader.vertexShader = 'uniform float uTime;\n' + shader.vertexShader.replace(
+    shader.uniforms.uSwayH = { value: swayH };
+    shader.uniforms.uSwayAmp = { value: swayAmp };
+    shader.vertexShader = 'uniform float uTime;\nuniform float uSwayH;\nuniform float uSwayAmp;\n' + shader.vertexShader.replace(
       '#include <begin_vertex>',
       `#include <begin_vertex>
        #ifdef USE_INSTANCING
@@ -118,7 +148,7 @@ function windMaterial(baseOpts) {
        float wPhase = 0.0;
        #endif
        float sway = sin(uTime * 1.7 + wPhase) * 0.5 + sin(uTime * 3.1 + wPhase * 1.7) * 0.22;
-       float hFac = max(transformed.y - 1.2, 0.0) * 0.045;
+       float hFac = max(transformed.y - uSwayH, 0.0) * uSwayAmp;
        transformed.x += sway * hFac;
        transformed.z += cos(uTime * 1.3 + wPhase) * hFac * 0.7;`
     );
@@ -146,10 +176,9 @@ export class Vegetation {
     this.rockGeo = makeRockGeometry();
     this.grassGeo = makeGrassGeometry();
 
-    this.treeMat = windMaterial({ vertexColors: true, roughness: 0.9, metalness: 0 });
+    this.treeMat = windMaterial({ vertexColors: true, roughness: 0.9, metalness: 0 }, 1.2, 0.045);
     this.rockMat = new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.85, metalness: 0.05 });
-    this.grassMat = windMaterial({ vertexColors: true, roughness: 1.0, metalness: 0, side: THREE.DoubleSide });
-    this.grassMat.userData.swayBoost = true;
+    this.grassMat = windMaterial({ vertexColors: true, roughness: 1.0, metalness: 0, side: THREE.DoubleSide }, 0.02, 0.30);
 
     this._dummy = new THREE.Object3D();
     this.colliders = new Map(); // key -> array de {x, z, r}

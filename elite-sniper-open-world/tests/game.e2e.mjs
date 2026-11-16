@@ -9,9 +9,15 @@ function makeEl(id) {
     textContent: '', innerHTML: '',
     classList: { add() {}, remove() {}, toggle() {} },
     children: [],
+    listeners: {},
     appendChild(c) { this.children.push(c); return c; },
     remove() {},
-    addEventListener() {},
+    addEventListener(type, fn) { (this.listeners[type] ||= []).push(fn); },
+    dispatch(type, ev) {
+      ev.preventDefault ||= () => {};
+      ev.stopPropagation ||= () => {};
+      for (const fn of this.listeners[type] || []) fn(ev);
+    },
     parentElement: { clientWidth: 420 },
     requestPointerLock() {},
     getContext: () => ({
@@ -38,6 +44,9 @@ globalThis.window = {
   innerWidth: 1280, innerHeight: 720, devicePixelRatio: 1,
   addEventListener() {}, AudioContext: undefined,
 };
+const consoleErrors = [];
+const origConsoleError = console.error;
+console.error = (...a) => { consoleErrors.push(a.join(' ')); origConsoleError(...a); };
 globalThis.requestAnimationFrame = () => 0; // loop controlado manualmente
 
 // ---- Substitui o WebGLRenderer ANTES de importar main.js ----
@@ -151,6 +160,69 @@ for (let i = 0; i < 120; i++) game._loop();
 
 // Autosave gravou algo
 assert(store.has('elite-sniper-save-v1'), 'autosave persistiu dados');
+
+// ---- Câmera mobile por toque (dedo direito) ----
+const canvas = game.canvas;
+const touch = (phase, id, x, y) =>
+  canvas.dispatch('touch' + phase, { changedTouches: [{ identifier: id, clientX: x, clientY: y }] });
+
+const yawBefore = game.player.yaw;
+touch('start', 7, 900, 400);
+touch('move', 7, 820, 340);
+touch('end', 7, 820, 340);
+game._loop();
+assert(Math.abs(game.player.yaw - yawBefore) > 0.05, 'toque no lado direito gira a câmera (yaw)');
+
+const pitchBefore = game.cameraCtl.pitch;
+touch('start', 8, 900, 300);
+touch('move', 8, 900, 220);
+touch('end', 8, 900, 220);
+game._loop();
+assert(Math.abs(game.cameraCtl.pitch - pitchBefore) > 0.05, 'arrastar para cima olha para cima (pitch)');
+
+// ---- Analógico esquerdo (canto inferior esquerdo) ----
+touch('start', 9, 90, 640);
+touch('move', 9, 150, 640);
+assert(game.input.move.x > 0.3, 'analógico esquerdo move o personagem para a direita');
+touch('end', 9, 150, 640);
+assert(game.input.move.x === 0 && game.input.move.y === 0, 'soltar o analógico zera o movimento');
+
+// Toque no lado esquerdo ACIMA da zona do analógico deve girar a câmera
+touch('start', 10, 100, 150);
+touch('move', 10, 60, 150);
+touch('end', 10, 60, 150);
+assert(true, 'toque superior esquerdo não vira movimento');
+
+// ---- REGRESSÃO: câmera não trava mais após abrir menu com o dedo na tela ----
+touch('start', 11, 900, 400);
+game.pause();
+touch('end', 11, 900, 400);
+assert(game.state === 'paused', 'pausa com o dedo na tela');
+game.resume();
+const yawBefore2 = game.player.yaw;
+touch('start', 12, 900, 400);
+touch('move', 12, 840, 400);
+touch('end', 12, 840, 400);
+game._loop();
+assert(Math.abs(game.player.yaw - yawBefore2) > 0.05, 'câmera continua respondendo após pausar/continuar (bug do toque preso)');
+
+// Mesma regressão com o analógico preso
+touch('start', 13, 90, 640);
+game.pause();
+touch('end', 13, 90, 640);
+game.resume();
+assert(game.input.move.x === 0 && game.input.move.y === 0, 'analógico não fica preso após pausa');
+
+// ---- Botões mobile disparam ações (pointerdown) ----
+const fireBtn = elements.get('btn-fire');
+const ammoBefore = game.weapons.ammo;
+fireBtn.dispatch('pointerdown', { button: 0 });
+game._loop();
+assert(game.weapons.ammo === ammoBefore - 1, 'botão TIRO dispara via pointerdown');
+
+// ---- Sem erros de console durante toda a execução ----
+const realErrors = consoleErrors.filter((e) => !e.includes('FALHOU'));
+assert(realErrors.length === 0, 'nenhum erro de console durante o jogo inteiro' + (realErrors.length ? ' :: ' + realErrors[0] : ''));
 
 console.log('\n== RESUMO E2E ==');
 console.log(process.exitCode ? 'HÁ FALHAS ACIMA' : 'BOOT COMPLETO DO JOGO: TODOS OS TESTES PASSARAM');

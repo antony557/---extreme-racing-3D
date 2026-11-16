@@ -72,14 +72,17 @@ src/
   weapons/  rifles.js (modelos) · ballistics.js · weaponSystem.js
   entities/ animals.js · npcs.js
   game/     missions.js · progression.js
-  ui/       hud.js · menus.js
+  ui/       hud.js · menus.js · mobileLayout.js (posições dos controles)
   main.js   bootstrap e loop
-tests/smoke.mjs  testes automatizados
+tests/  smoke.mjs · game.e2e.mjs · layout.mjs
 ```
 
 ## Testes executados (reais)
 
-`npm test` roda 33 verificações em Node que exercitam o jogo de verdade:
+Três suítes automatizadas em Node:
+
+- **`tests/smoke.mjs`** — 37 verificações de sistemas (mundo, física, armas,
+  animais, NPCs, missões, progressão, performance):
 
 - heightfield determinístico, rio abaixo do nível da água, montanhas, sítios aplainados;
 - streaming de chunks (criação, recarga ao mover, descarte ao longe);
@@ -96,6 +99,19 @@ tests/smoke.mjs  testes automatizados
 
 Verificações estáticas adicionais: sintaxe de todos os módulos (`node --check`) e
 conferência automática de que todo `getElementById` usado no código existe no HTML.
+
+- **`tests/game.e2e.mjs`** — 39 verificações que dão boot no JOGO INTEIRO
+  (main.js real, renderizador simulado) e rodam o loop de jogo: menu → caça
+  livre → 600 frames → mover → atirar/mirar/zoom/deitar → pausa/continuar →
+  campanha → morte/respawn → sair/reentrar → autosave. Inclui **simulação de
+  toque real**: dedo direito girando a câmera (yaw e pitch), analógico esquerdo
+  movendo o personagem, e regressão do bug de câmera travada (pausar com o dedo
+  na tela e voltar — a câmera continua respondendo). Também verifica zero
+  erros de console durante toda a execução.
+- **`tests/layout.mjs`** — prova geométrica do layout mobile em 3 resoluções
+  reais de Android (780×360, 915×412, 1280×720): os 13 botões não se
+  sobrepõem dois a dois (78 pares verificados por resolução), todos dentro da
+  tela, nenhum cobre o analógico, ações de combate no lado direito.
 
 **Limitação honesta:** este sandbox não possui navegador com WebGL nem acesso a um
 aparelho Android, então o boot visual em navegador real e o FPS em tela não puderam ser

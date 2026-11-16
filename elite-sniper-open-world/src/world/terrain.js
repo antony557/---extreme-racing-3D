@@ -2,6 +2,7 @@
 import * as THREE from 'three';
 import { terrainHeight, terrainNormal, biomeColor } from './heightfield.js';
 import { WORLD } from '../core/config.js';
+import { rng } from '../core/utils.js';
 
 const _c = [0, 0, 0];
 const _n = { x: 0, y: 1, z: 0 };
@@ -48,12 +49,38 @@ function buildChunkGeometry(cx, cz, segments) {
   return geo;
 }
 
+function groundDetailTexture() {
+  // Textura procedural de micro-detalhe (terra/grama) — multiplica as cores
+  // dos vértices e dá granulação ao terreno sem custo de download.
+  const S = 256;
+  const cv = document.createElement('canvas');
+  cv.width = S; cv.height = S;
+  const ctx = cv.getContext('2d');
+  ctx.fillStyle = '#b4b4b4';
+  ctx.fillRect(0, 0, S, S);
+  const rand = rng(777);
+  for (let i = 0; i < 5200; i++) {
+    const x = rand() * S, y = rand() * S;
+    const v = 140 + Math.floor(rand() * 110);
+    const s = 1 + rand() * 2.4;
+    ctx.fillStyle = `rgb(${v},${v - Math.floor(rand() * 24)},${v - Math.floor(rand() * 34)})`;
+    ctx.fillRect(x, y, s, s);
+  }
+  const tex = new THREE.CanvasTexture(cv);
+  tex.wrapS = THREE.RepeatWrapping;
+  tex.wrapT = THREE.RepeatWrapping;
+  tex.repeat.set(90, 90);
+  tex.colorSpace = THREE.SRGBColorSpace;
+  return tex;
+}
+
 export class Terrain {
   constructor(scene, quality) {
     this.scene = scene;
     this.q = quality;
     this.material = new THREE.MeshStandardMaterial({
       vertexColors: true, roughness: 0.95, metalness: 0.0,
+      map: groundDetailTexture(),
     });
     this.chunks = new Map();
     this.group = new THREE.Group();

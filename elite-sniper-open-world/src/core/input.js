@@ -1,6 +1,7 @@
 // Entrada unificada — teclado/mouse (PC) e toque (Android) simultâneos
 import { IS_MOBILE } from './config.js';
 import { clamp } from './utils.js';
+import { JOYSTICK } from '../ui/mobileLayout.js';
 
 export class Input {
   constructor(canvas, opts = {}) {
@@ -84,7 +85,18 @@ export class Input {
     c.addEventListener('touchend', (e) => this._touch(e, 'end'), { passive: false });
     c.addEventListener('touchcancel', (e) => this._touch(e, 'end'), { passive: false });
 
+    document.addEventListener('visibilitychange', () => {
+      if (document.hidden) this._resetTouches();
+    });
+
     this._bindButtons();
+  }
+
+  _resetTouches() {
+    this._touchLook = null;
+    this._joyPointer = null;
+    this.move.x = 0; this.move.y = 0;
+    this._fireHeld = false;
   }
 
   _bindButtons() {
@@ -138,19 +150,22 @@ export class Input {
   }
 
   _touch(e, phase) {
-    if (!this._enabled) return;
     e.preventDefault();
-    const w = window.innerWidth;
+    const w = window.innerWidth, h = window.innerHeight;
     for (const t of e.changedTouches) {
-      const isLeft = t.clientX < w * 0.38;
+      // Zona do analógico: exclusivamente canto inferior esquerdo.
+      // Todo o resto da tela (incluindo o lado direito inteiro) controla a câmera.
+      const inJoyZone = t.clientX < w * JOYSTICK.zoneX && t.clientY > h * JOYSTICK.zoneY;
       if (phase === 'start') {
-        if (isLeft && this._joyPointer === null) {
+        if (!this._enabled) continue;
+        if (inJoyZone && this._joyPointer === null) {
           this._joyPointer = t.identifier;
           this._joyOrigin = { x: t.clientX, y: t.clientY };
-        } else if (!isLeft && this._touchLook === null) {
+        } else if (!inJoyZone && this._touchLook === null) {
           this._touchLook = { id: t.identifier, x: t.clientX, y: t.clientY };
         }
       } else if (phase === 'move') {
+        if (!this._enabled) continue;
         if (t.identifier === this._joyPointer) {
           const dx = t.clientX - this._joyOrigin.x, dy = t.clientY - this._joyOrigin.y;
           const max = 58;
@@ -164,6 +179,8 @@ export class Input {
           this._touchLook.x = t.clientX; this._touchLook.y = t.clientY;
         }
       } else {
+        // touchend/touchcancel SEMPRE processados, mesmo com input desabilitado
+        // (menus abertos) — sem isso o ID do toque fica preso e a câmera morre.
         if (t.identifier === this._joyPointer) {
           this._joyPointer = null;
           this.move.x = 0; this.move.y = 0;
@@ -205,6 +222,9 @@ export class Input {
       this.move.x = 0; this.move.y = 0;
       this._fireHeld = false; this.aim = false; this.run = false;
       this._keys.clear();
+      this._touchLook = null;
+      this._joyPointer = null;
+      this.endFrame();
     }
   }
 }

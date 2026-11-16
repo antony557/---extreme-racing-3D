@@ -16,6 +16,7 @@ import { MissionManager } from './game/missions.js';
 import { addStat, setStat, saveWorldState, addXp, saveSettings } from './game/progression.js';
 import { Hud } from './ui/hud.js';
 import { Menus } from './ui/menus.js';
+import { applyMobileLayout } from './ui/mobileLayout.js';
 import { fbm, clamp } from './core/utils.js';
 
 class Game {
@@ -107,7 +108,8 @@ class Game {
     this.menuAngle = 0;
     this.mode = 'hunt';
 
-    window.addEventListener('resize', () => this._resize());
+    window.addEventListener('resize', () => { this._resize(); applyMobileLayout(); });
+    applyMobileLayout();
     this._resize();
     this.menus.showMain();
 
@@ -182,6 +184,7 @@ class Game {
     this.menus.hideAll();
     document.getElementById('hud').classList.remove('hidden');
     document.getElementById('mobile-controls').classList.toggle('hidden', !IS_MOBILE);
+    applyMobileLayout();
     this.input.setEnabled(true);
     if (!IS_MOBILE) this.input.requestPointerLock();
     this.hud.banner(mode === 'campaign' ? 'MODO CAMPANHA' : 'MODO CAÇA LIVRE',
