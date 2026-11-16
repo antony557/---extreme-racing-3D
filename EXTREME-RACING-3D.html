@@ -4492,16 +4492,36 @@ class Game {
   loop() {
     try {
       this.tick();
-      this._errStreak = 0;
+      if (this._errStreak > 0) {
+        this._errStreak = 0;
+        this._hideRuntimeError();
+      }
     } catch (err) {
       console.error('ERRO no loop do jogo:', err);
       this._errStreak = (this._errStreak || 0) + 1;
-      if (this._errStreak === 1 && this.ui) this.ui.toast('Erro recuperado automaticamente.', 1800);
+      this._showRuntimeError(err);
       if (this._errStreak > 240) {
         this.renderer.setAnimationLoop(null);
-        if (this.ui) this.ui.toast('Erro crítico recorrente. Recarregue a página.', 8000);
       }
     }
+  }
+
+  _showRuntimeError(err) {
+    let el = document.getElementById('err-overlay');
+    if (!el) {
+      el = document.createElement('div');
+      el.id = 'err-overlay';
+      el.style.cssText = 'position:fixed;left:8px;top:8px;z-index:99999;max-width:78%;padding:8px 10px;background:rgba(130,0,0,.94);color:#fff;font:11px/1.45 monospace;border:1px solid rgba(255,255,255,.35);border-radius:6px;white-space:pre-wrap;pointer-events:none;';
+      document.body.appendChild(el);
+    }
+    const msg = err && err.message ? err.message : String(err);
+    const stack = err && err.stack ? (err.stack.split('\n')[1] || '') : '';
+    el.textContent = 'ERRO x' + this._errStreak + ': ' + msg + (stack ? '\n' + stack.trim().slice(0, 160) : '');
+  }
+
+  _hideRuntimeError() {
+    const el = document.getElementById('err-overlay');
+    if (el) el.remove();
   }
 
   tick() {
